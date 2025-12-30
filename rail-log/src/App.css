@@ -1,0 +1,362 @@
+/* src/App.css */
+:root {
+  --primary-color: #2d3436;
+  --accent-color: #0984e3;
+  --bg-color: #f0f2f5;
+  --card-bg: #ffffff;
+  --text-main: #2d3436;
+  --text-sub: #636e72;
+  --border-color: #dfe6e9;
+  margin: 0;
+  padding: 0;
+}
+
+/* body を flex にして中央寄せ */
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, sans-serif;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+/* アプリ全体の最大幅を制限し、中央に配置 */
+.container {
+  width: 100%;
+  max-width: 500px;
+  /* スマホサイズに固定 */
+  margin: 0 auto;
+  padding: 10px 15px 100px 15px;
+  box-sizing: border-box;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 15px;
+}
+
+/* Auth */
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.auth-card {
+  width: 100%;
+  text-align: center;
+}
+
+.auth-logo {
+  font-size: 60px;
+  margin-bottom: 10px;
+}
+
+.auth-title {
+  margin: 0 0 20px 0;
+  font-weight: 800;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.text-btn {
+  background: none;
+  border: none;
+  color: var(--accent-color);
+  text-decoration: underline;
+  margin-top: 15px;
+  cursor: pointer;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.logo {
+  font-weight: 800;
+  color: var(--primary-color);
+  margin: 0;
+}
+
+.icon-btn-logout {
+  background: #eee;
+  border: none;
+  padding: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Form Elements */
+.input-group,
+.input-group-three {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.input-group {
+  grid-template-columns: 1fr 1fr;
+}
+
+.input-group-three {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+label {
+  font-size: 11px;
+  color: var(--text-sub);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+input,
+textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+textarea {
+  height: 80px;
+  margin-bottom: 10px;
+}
+
+button.primary {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 15px;
+  border-radius: 12px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Search Box */
+.search-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  position: sticky;
+  top: 10px;
+  z-index: 100;
+}
+
+.search-input {
+  border: none;
+  padding: 5px;
+  background: transparent;
+  flex-grow: 1;
+  font-size: 14px;
+}
+
+.search-input:focus {
+  outline: none;
+}
+
+/* History Date Group */
+.history-date-group {
+  margin-bottom: 25px;
+}
+
+.date-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  margin-bottom: 10px;
+  font-weight: bold;
+  font-size: 14px;
+  color: var(--primary-color);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.date-count {
+  font-size: 11px;
+  color: var(--text-sub);
+  font-weight: normal;
+}
+
+/* History Card */
+.history-main {
+  display: flex;
+  gap: 12px;
+}
+
+.history-time-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  width: 45px;
+  flex-shrink: 0;
+}
+
+.time-line {
+  width: 2px;
+  background: var(--border-color);
+  flex-grow: 1;
+  margin: 4px 0;
+}
+
+.history-info-col {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.info-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-sub);
+  margin-bottom: 4px;
+}
+
+.info-middle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.info-line {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.info-stations {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-details {
+  font-size: 11px;
+  color: var(--text-sub);
+  word-break: break-all;
+}
+
+.info-memo {
+  margin-top: 8px;
+  font-size: 12px;
+  background: #f8f9fa;
+  padding: 8px;
+  border-radius: 6px;
+  color: #555;
+}
+
+.delete-btn {
+  background: transparent;
+  border: none;
+  color: #fab1a0;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 5px;
+}
+
+/* Badges */
+.badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.bg-red {
+  background-color: #e63946;
+}
+
+.bg-orange {
+  background-color: #f4a261;
+}
+
+.bg-blue {
+  background-color: #457b9d;
+}
+
+.bg-gray {
+  background-color: #6c757d;
+}
+
+/* Bottom Nav (中央寄せ修正済み) */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 500px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  display: flex;
+  padding: 10px 0 25px 0;
+  border-top: 1px solid var(--border-color);
+  z-index: 1000;
+}
+
+.bottom-nav button {
+  flex: 1;
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #b2bec3;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.bottom-nav button.active {
+  color: var(--primary-color);
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-sub);
+}
