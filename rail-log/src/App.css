@@ -18,8 +18,15 @@ body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, sans-serif;
+  display: block;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+#root {
   display: flex;
   justify-content: center;
+  width: 100%;
   min-height: 100vh;
 }
 
@@ -29,7 +36,7 @@ body {
   max-width: 500px;
   /* スマホサイズに固定 */
   margin: 0 auto;
-  padding: 10px 15px 100px 15px;
+  padding: 10px 15px 10px 15px;
   box-sizing: border-box;
 }
 
@@ -47,6 +54,7 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  width: 400px;
 }
 
 .auth-card {
@@ -210,7 +218,7 @@ button.primary {
   align-items: center;
   font-size: 12px;
   font-weight: 700;
-  width: 45px;
+  width: 50px;
   flex-shrink: 0;
 }
 
@@ -291,7 +299,7 @@ button.primary {
 }
 
 .bg-red {
-  background-color: #e63946;
+  background-color: #ff006f;
 }
 
 .bg-orange {
@@ -359,4 +367,34 @@ button.primary {
   text-align: center;
   padding: 40px;
   color: var(--text-sub);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 18px;
+}
+
+.submit-btn:hover {
+  opacity: 0.9;
+}
+
+/* 編集タイトルの位置調整 */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+/* 削除・編集ボタンの配置 */
+.action-btns {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
 }

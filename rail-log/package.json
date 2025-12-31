@@ -8,5 +8,13 @@
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "npm run build && cd dist && git init && git add . && git commit -m 'Update' && git push -f https://github.com/iL9feYcUt/train_record.git master:gh-pages"
   }
 }

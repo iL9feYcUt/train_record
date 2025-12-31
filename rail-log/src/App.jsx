@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from './supabaseClient'
-import { Train, Calendar, Clock, LogOut, PlusCircle, List, Trash2, ChevronRight, Search } from 'lucide-react'
+import { Train, Calendar, Clock, LogOut, PlusCircle, List, Trash2, ChevronRight, Search, Edit2, X } from 'lucide-react'
 import './App.css'
 
 function App() {
@@ -9,6 +9,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('record')
   const [searchQuery, setSearchQuery] = useState('')
+  const [editingId, setEditingId] = useState(null) // 編集中のID管理
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -71,9 +72,31 @@ function App() {
     const { data, error } = await supabase
       .from('rides')
       .select('*')
+      // 日付は降順（新しい日が上）、時刻は昇順（同じ日の中では下が最新）
       .order('ride_date', { ascending: false })
-      .order('departure_time', { ascending: false })
+      .order('departure_time', { ascending: true })
+      .order('created_at', { ascending: true })
     if (!error) setRides(data)
+  }
+
+  // 編集開始処理
+  const handleEditStart = (ride) => {
+    setEditingId(ride.id)
+    setFormData({ ...ride })
+    setActiveTab('record')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // 編集キャンセル
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setFormData({
+      ride_date: new Date().toISOString().split('T')[0],
+      railway_company: '', line_name: '', train_number: '',
+      operation_number: '', formation_number: '', service_type: '',
+      car_number: '', departure_station: '', arrival_station: '',
+      departure_time: '', arrival_time: '', memo: ''
+    })
   }
 
   const handleDelete = async (id) => {
@@ -94,24 +117,46 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const { error } = await supabase.from('rides').insert([{ ...formData, user_id: session.user.id }])
+    setLoading(true)
+    
+    const payload = { ...formData, user_id: session.user.id }
+    let error;
+
+    if (editingId) {
+      // 編集（UPDATE）処理
+      const result = await supabase
+        .from('rides')
+        .update(payload)
+        .eq('id', editingId)
+      error = result.error
+    } else {
+      // 新規（INSERT）処理
+      const result = await supabase.from('rides').insert([payload])
+      error = result.error
+    }
+
     if (!error) {
-      alert('記録しました！')
+      alert(editingId ? '更新しました！' : '記録しました！')
+      setEditingId(null)
       fetchRides()
+      // 入力フォームを次の乗車準備（降車駅を次の乗車駅にセット）
       setFormData(prev => ({
         ...prev, train_number: '', operation_number: '', formation_number: '', 
         car_number: '', departure_station: prev.arrival_station, 
         arrival_station: '', departure_time: '', arrival_time: '', memo: ''
       }))
       setActiveTab('history')
+    } else {
+      alert('エラーが発生しました: ' + error.message)
     }
+    setLoading(false)
   }
 
   const getServiceColor = (type) => {
     if (!type) return 'bg-gray'
-    if (type.includes('特急') || type.includes('新幹線') || type.includes('快特')) return 'bg-red'
-    if (type.includes('快速') || type.includes('急行')) return 'bg-orange'
-    if (type.includes('普通') || type.includes('各停')) return 'bg-blue'
+    if (type.includes('特急') || type.includes('快速') || type.includes('急行')) return 'bg-red'
+    if (type.includes('快速アーバン') || type.includes('急行')) return 'bg-orange'
+    if (type.includes('普通') || type.includes('各駅停車')) return 'bg-blue'
     return 'bg-gray'
   }
 
@@ -145,7 +190,10 @@ function App() {
 
       {activeTab === 'record' ? (
         <div className="card fade-in">
-          <h3 className="section-title"><PlusCircle size={18} /> 新規乗車記録</h3>
+          <h3 className="section-title">
+            {editingId ? <Edit2 size={18} /> : <PlusCircle size={18} />}
+            <span>{editingId ? ' 記録を編集' : ' 新規乗車記録'}</span>
+          </h3>
           <form onSubmit={handleSubmit} className="ride-form">
             <datalist id="company-list">{suggestions.companies.map(s => <option key={s} value={s} />)}</datalist>
             <datalist id="line-list">{suggestions.lines.map(s => <option key={s} value={s} />)}</datalist>
@@ -175,7 +223,17 @@ function App() {
               <label>着時刻<input type="time" value={formData.arrival_time} onChange={(e) => setFormData({...formData, arrival_time: e.target.value})} /></label>
             </div>
             <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => setFormData({...formData, memo: e.target.value})} />
-            <button type="submit" className="primary submit-btn">記録を保存</button>
+            
+            <div className="button-row" style={{ display: 'flex', gap: '10px' }}>
+              <button type="submit" className="primary submit-btn" style={{ flex: 2 }}>
+                {editingId ? '変更を保存' : '記録を保存'}
+              </button>
+              {editingId && (
+                <button type="button" onClick={handleCancelEdit} className="text-btn cancel-btn" style={{ flex: 1, textDecoration: 'none', background: '#eee', borderRadius: '12px', color: '#666', marginTop: 0 }}>
+                  キャンセル
+                </button>
+              )}
+            </div>
           </form>
         </div>
       ) : (
@@ -227,7 +285,10 @@ function App() {
                           </div>
                           {ride.memo && <div className="info-memo">{ride.memo}</div>}
                         </div>
-                        <button onClick={() => handleDelete(ride.id)} className="delete-btn"><Trash2 size={16} /></button>
+                        <div className="action-btns" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <button onClick={() => handleDelete(ride.id)} className="delete-btn"><Trash2 size={16} /></button>
+                          <button onClick={() => handleEditStart(ride)} className="edit-btn" style={{ background: 'none', border: 'none', color: '#0984e3', cursor: 'pointer', padding: '5px' }}><Edit2 size={16} /></button>
+                        </div>
                       </div>
                     </div>
                   ))}
