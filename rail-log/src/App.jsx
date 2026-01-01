@@ -24,6 +24,22 @@ function App() {
     departure_time: '', arrival_time: '', memo: ''
   })
 
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // 50px以上スクロールしたらコンパクトモードにする
+      if (window.scrollY > 50) {
+        setIsCompact(true);
+      } else {
+        setIsCompact(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -216,10 +232,12 @@ function App() {
               <label>会社名<input type="text" list="company-list" placeholder="JR東日本" value={formData.railway_company} onChange={(e) => handleInputChange('railway_company', e.target.value)} /></label>
             </div>
 
-            <div className="input-group-three">
+            <div className="input-group">
               <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => handleInputChange('line_name', e.target.value)} />
               <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => handleInputChange('service_type', e.target.value)} />
-              {/* 色の選択肢 + カスタムカラーピッカー */}
+            </div>
+            {/* 色の選択肢 + カスタムカラーピッカー */}
+            <div>
               <div className="color-selector">
                 {['bg-skyblue', 'bg-red', 'bg-orange', 'bg-green', 'bg-purple', 'bg-gray'].map(color => (
                   <button
@@ -285,10 +303,16 @@ function App() {
             <Search size={18} className="search-icon" />
             <input
               type="text"
-              placeholder="絞り込み..."
+              placeholder={isCompact ? "" : "絞り込み..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
+              style={{
+                width: isCompact ? '0px' : '100%',
+                padding: isCompact ? '0px' : '8px 12px',
+                opacity: isCompact ? 0 : 1,
+                marginLeft: isCompact ? '0px' : '8px'
+              }}
             />
           </div>
 

@@ -177,7 +177,7 @@ button.primary {
   padding: 5px;
   background: transparent;
   flex-grow: 1;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .search-input:focus {
@@ -400,10 +400,11 @@ button.primary {
   align-items: center;
   justify-content: space-around;
   gap: 4px;
-  padding: 0 2px;
+  padding: 10px 2px;
   background: #f8f9fa;
   border-radius: 8px;
   border: 1px solid var(--border-color);
+  margin: 0 5px;
 }
 
 .color-dot.active {
@@ -425,8 +426,8 @@ button.primary {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 10px;
-  height: 10px;
+  width: 20px;
+  height: 20px;
 }
 
 /* 実際のinputは隠す */
@@ -458,8 +459,8 @@ button.primary {
 }
 
 .color-dot {
-  width: 13px;
-  height: 13px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
