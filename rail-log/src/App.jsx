@@ -10,14 +10,14 @@ function App() {
   const [activeTab, setActiveTab] = useState('record')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingId, setEditingId] = useState(null) // 編集中のID管理
-  
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
 
   const [formData, setFormData] = useState({
     ride_date: new Date().toISOString().split('T')[0],
-    railway_company: '', line_name: '', train_number: '',
+    railway_company: '', line_name: '', destination: '', train_number: '',
     operation_number: '', formation_number: '', service_type: '',
     car_number: '', departure_station: '', arrival_station: '',
     departure_time: '', arrival_time: '', memo: ''
@@ -47,7 +47,7 @@ function App() {
 
   const filteredRides = useMemo(() => {
     const query = searchQuery.toLowerCase()
-    return rides.filter(ride => 
+    return rides.filter(ride =>
       ride.line_name?.toLowerCase().includes(query) ||
       ride.formation_number?.toLowerCase().includes(query) ||
       ride.railway_company?.toLowerCase().includes(query) ||
@@ -108,7 +108,7 @@ function App() {
   const handleAuth = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const result = isSignUp 
+    const result = isSignUp
       ? await supabase.auth.signUp({ email, password })
       : await supabase.auth.signInWithPassword({ email, password })
     if (result.error) alert(result.error.message)
@@ -118,7 +118,7 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    
+
     const payload = { ...formData, user_id: session.user.id }
     let error;
 
@@ -141,8 +141,8 @@ function App() {
       fetchRides()
       // 入力フォームを次の乗車準備（降車駅を次の乗車駅にセット）
       setFormData(prev => ({
-        ...prev, train_number: '', operation_number: '', formation_number: '', 
-        car_number: '', departure_station: prev.arrival_station, 
+        ...prev, train_number: '', operation_number: '', formation_number: '',
+        car_number: '', departure_station: prev.arrival_station,
         arrival_station: '', departure_time: '', arrival_time: '', memo: ''
       }))
       setActiveTab('history')
@@ -201,29 +201,30 @@ function App() {
             <datalist id="station-list">{suggestions.stations.map(s => <option key={s} value={s} />)}</datalist>
 
             <div className="input-group">
-              <label>日付<input type="date" value={formData.ride_date} onChange={(e) => setFormData({...formData, ride_date: e.target.value})} required /></label>
-              <label>会社名<input type="text" list="company-list" placeholder="JR東日本" value={formData.railway_company} onChange={(e) => setFormData({...formData, railway_company: e.target.value})} /></label>
-            </div>
-            <div className="input-group">
-              <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => setFormData({...formData, line_name: e.target.value})} />
-              <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => setFormData({...formData, service_type: e.target.value})} />
+              <label>日付<input type="date" value={formData.ride_date} onChange={(e) => setFormData({ ...formData, ride_date: e.target.value })} required /></label>
+              <label>会社名<input type="text" list="company-list" placeholder="JR東日本" value={formData.railway_company} onChange={(e) => setFormData({ ...formData, railway_company: e.target.value })} /></label>
             </div>
             <div className="input-group-three">
-              <input type="text" placeholder="列番" value={formData.train_number} onChange={(e) => setFormData({...formData, train_number: e.target.value})} />
-              <input type="text" placeholder="運番" value={formData.operation_number} onChange={(e) => setFormData({...formData, operation_number: e.target.value})} />
-              <input type="text" placeholder="編成" value={formData.formation_number} onChange={(e) => setFormData({...formData, formation_number: e.target.value})} />
+              <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => setFormData({ ...formData, line_name: e.target.value })} />
+              <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => setFormData({ ...formData, service_type: e.target.value })} />
+              <input type="text" list="station-list" placeholder="行先" value={formData.destination} onChange={(e) => setFormData({ ...formData, destination: e.target.value })} />
             </div>
-            <input type="text" placeholder="車番/号車" value={formData.car_number} onChange={(e) => setFormData({...formData, car_number: e.target.value})} className="full-width" />
+            <div className="input-group-three">
+              <input type="text" placeholder="列番" value={formData.train_number} onChange={(e) => setFormData({ ...formData, train_number: e.target.value })} />
+              <input type="text" placeholder="運番" value={formData.operation_number} onChange={(e) => setFormData({ ...formData, operation_number: e.target.value })} />
+              <input type="text" placeholder="編成" value={formData.formation_number} onChange={(e) => setFormData({ ...formData, formation_number: e.target.value })} />
+            </div>
+            <input type="text" placeholder="車番/号車" value={formData.car_number} onChange={(e) => setFormData({ ...formData, car_number: e.target.value })} className="full-width" />
             <div className="input-group">
-              <input type="text" list="station-list" placeholder="乗車駅" value={formData.departure_station} onChange={(e) => setFormData({...formData, departure_station: e.target.value})} />
-              <input type="text" list="station-list" placeholder="下車駅" value={formData.arrival_station} onChange={(e) => setFormData({...formData, arrival_station: e.target.value})} />
+              <input type="text" list="station-list" placeholder="乗車駅" value={formData.departure_station} onChange={(e) => setFormData({ ...formData, departure_station: e.target.value })} />
+              <input type="text" list="station-list" placeholder="下車駅" value={formData.arrival_station} onChange={(e) => setFormData({ ...formData, arrival_station: e.target.value })} />
             </div>
             <div className="input-group">
-              <label>発時刻<input type="time" value={formData.departure_time} onChange={(e) => setFormData({...formData, departure_time: e.target.value})} /></label>
-              <label>着時刻<input type="time" value={formData.arrival_time} onChange={(e) => setFormData({...formData, arrival_time: e.target.value})} /></label>
+              <label>発時刻<input type="time" value={formData.departure_time} onChange={(e) => setFormData({ ...formData, departure_time: e.target.value })} /></label>
+              <label>着時刻<input type="time" value={formData.arrival_time} onChange={(e) => setFormData({ ...formData, arrival_time: e.target.value })} /></label>
             </div>
-            <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => setFormData({...formData, memo: e.target.value})} />
-            
+            <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => setFormData({ ...formData, memo: e.target.value })} />
+
             <div className="button-row" style={{ display: 'flex', gap: '10px' }}>
               <button type="submit" className="primary submit-btn" style={{ flex: 2 }}>
                 {editingId ? '変更を保存' : '記録を保存'}
@@ -240,9 +241,9 @@ function App() {
         <div className="fade-in">
           <div className="search-container card">
             <Search size={18} className="search-icon" />
-            <input 
-              type="text" 
-              placeholder="路線、編成、列番などで絞り込み..." 
+            <input
+              type="text"
+              placeholder="路線、編成、列番などで絞り込み..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
@@ -260,7 +261,7 @@ function App() {
                     <span>{date.replace(/-/g, '/')}</span>
                     <span className="date-count">({groupedRides[date].length}件)</span>
                   </div>
-                  
+
                   {groupedRides[date].map(ride => (
                     <div key={ride.id} className="history-card card">
                       <div className="history-main">
@@ -271,11 +272,16 @@ function App() {
                         </div>
                         <div className="history-info-col">
                           <div className="info-top">
-                            <span className="info-company">{ride.railway_company}</span>
+                            <span className="info-company">
+                              {ride.railway_company}
+                              <span className="info-line">{ride.line_name}</span>
+                            </span>
                           </div>
                           <div className="info-middle">
                             <span className={`badge ${getServiceColor(ride.service_type)}`}>{ride.service_type || '普通'}</span>
-                            <span className="info-line">{ride.line_name}</span>
+                            <span className="info-destination">
+                              {ride.destination && <span> {ride.destination}</span>}
+                            </span>
                           </div>
                           <div className="info-stations">
                             {ride.departure_station} <ChevronRight size={14} className="arrow-icon" /> {ride.arrival_station}

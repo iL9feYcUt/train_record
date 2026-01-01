@@ -252,14 +252,23 @@ button.primary {
   flex-wrap: wrap;
 }
 
+.info-destination {
+  font-size: 15px;
+  color: var(--text-main);
+  font-weight: bold;
+  margin-left: 4px;
+}
+
 .info-line {
-  font-weight: 800;
-  font-size: 16px;
+  font-size: 13px;
+  color: var(--text-main);
+  font-weight: bold;
+  margin-left: 4px;
 }
 
 .info-stations {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 16px;
   margin-bottom: 6px;
   display: flex;
   align-items: center;
