@@ -165,7 +165,7 @@ function App() {
       <div className="container auth-container">
         <div className="card text-center auth-card">
           <div className="auth-logo">🚆</div>
-          <h1 className="auth-title">RailLog</h1>
+          <h1 className="auth-title">乗車記録</h1>
           <form onSubmit={handleAuth} className="auth-form">
             <input type="email" placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} required />
             <input type="password" placeholder="パスワード" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -184,7 +184,7 @@ function App() {
   return (
     <div className="container main-app">
       <header className="app-header">
-        <h2 className="logo">RailLog</h2>
+        <h2 className="logo">乗車記録</h2>
         <button onClick={() => supabase.auth.signOut()} className="icon-btn-logout"><LogOut size={18} /></button>
       </header>
 
