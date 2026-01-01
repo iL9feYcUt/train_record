@@ -55,6 +55,7 @@ function App() {
       ride.train_number?.toLowerCase().includes(query) ||
       ride.departure_station?.toLowerCase().includes(query) ||
       ride.arrival_station?.toLowerCase().includes(query) ||
+      ride.destination?.toLowerCase().includes(query) ||
       ride.memo?.toLowerCase().includes(query)
     )
   }, [rides, searchQuery])
