@@ -9,7 +9,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('record')
   const [searchQuery, setSearchQuery] = useState('')
-  const [editingId, setEditingId] = useState(null) // 編集中のID管理
+  const [editingId, setEditingId] = useState(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -19,6 +19,7 @@ function App() {
     ride_date: new Date().toISOString().split('T')[0],
     railway_company: '', line_name: '', destination: '', train_number: '',
     operation_number: '', formation_number: '', service_type: '',
+    service_color: 'bg-skyblue', // 初期値
     car_number: '', departure_station: '', arrival_station: '',
     departure_time: '', arrival_time: '', memo: ''
   })
@@ -72,28 +73,44 @@ function App() {
     const { data, error } = await supabase
       .from('rides')
       .select('*')
-      // 日付は降順（新しい日が上）、時刻は昇順（同じ日の中では下が最新）
       .order('ride_date', { ascending: false })
       .order('departure_time', { ascending: true })
       .order('created_at', { ascending: true })
     if (!error) setRides(data)
   }
 
-  // 編集開始処理
+  // 路線名や種別から過去の色設定を推測する
+  const handleInputChange = (field, value) => {
+    const newFormData = { ...formData, [field]: value };
+    
+    if (field === 'line_name' || field === 'service_type') {
+      const line = field === 'line_name' ? value : formData.line_name;
+      const service = field === 'service_type' ? value : formData.service_type;
+      
+      // 過去の履歴から一致するものを探す
+      const match = rides.find(r => r.line_name === line && r.service_type === service);
+      if (match && match.service_color) {
+        newFormData.service_color = match.service_color;
+      }
+    }
+    
+    setFormData(newFormData);
+  };
+
   const handleEditStart = (ride) => {
     setEditingId(ride.id)
-    setFormData({ ...ride })
+    setFormData({ ...ride, service_color: ride.service_color || getServiceColor(ride.service_type) })
     setActiveTab('record')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // 編集キャンセル
   const handleCancelEdit = () => {
     setEditingId(null)
     setFormData({
       ride_date: new Date().toISOString().split('T')[0],
-      railway_company: '', line_name: '', train_number: '',
+      railway_company: '', line_name: '', destination: '', train_number: '',
       operation_number: '', formation_number: '', service_type: '',
+      service_color: 'bg-skyblue',
       car_number: '', departure_station: '', arrival_station: '',
       departure_time: '', arrival_time: '', memo: ''
     })
@@ -123,14 +140,9 @@ function App() {
     let error;
 
     if (editingId) {
-      // 編集（UPDATE）処理
-      const result = await supabase
-        .from('rides')
-        .update(payload)
-        .eq('id', editingId)
+      const result = await supabase.from('rides').update(payload).eq('id', editingId)
       error = result.error
     } else {
-      // 新規（INSERT）処理
       const result = await supabase.from('rides').insert([payload])
       error = result.error
     }
@@ -139,7 +151,6 @@ function App() {
       alert(editingId ? '更新しました！' : '記録しました！')
       setEditingId(null)
       fetchRides()
-      // 入力フォームを次の乗車準備（降車駅を次の乗車駅にセット）
       setFormData(prev => ({
         ...prev, train_number: '', operation_number: '', formation_number: '',
         car_number: '', departure_station: prev.arrival_station,
@@ -155,7 +166,6 @@ function App() {
   const getServiceColor = (type) => {
     if (!type) return 'bg-gray'
     if (type.includes('特急') || type.includes('快速') || type.includes('急行')) return 'bg-red'
-    if (type.includes('快速アーバン') || type.includes('急行')) return 'bg-orange'
     if (type.includes('普通') || type.includes('各駅停車')) return 'bg-blue'
     return 'bg-gray'
   }
@@ -201,29 +211,45 @@ function App() {
             <datalist id="station-list">{suggestions.stations.map(s => <option key={s} value={s} />)}</datalist>
 
             <div className="input-group">
-              <label>日付<input type="date" value={formData.ride_date} onChange={(e) => setFormData({ ...formData, ride_date: e.target.value })} required /></label>
-              <label>会社名<input type="text" list="company-list" placeholder="JR東日本" value={formData.railway_company} onChange={(e) => setFormData({ ...formData, railway_company: e.target.value })} /></label>
+              <label>日付<input type="date" value={formData.ride_date} onChange={(e) => handleInputChange('ride_date', e.target.value)} required /></label>
+              <label>会社名<input type="text" list="company-list" placeholder="JR東日本" value={formData.railway_company} onChange={(e) => handleInputChange('railway_company', e.target.value)} /></label>
             </div>
+            
             <div className="input-group-three">
-              <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => setFormData({ ...formData, line_name: e.target.value })} />
-              <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => setFormData({ ...formData, service_type: e.target.value })} />
-              <input type="text" list="station-list" placeholder="行先" value={formData.destination} onChange={(e) => setFormData({ ...formData, destination: e.target.value })} />
+              <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => handleInputChange('line_name', e.target.value)} />
+              <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => handleInputChange('service_type', e.target.value)} />
+              <div className="color-selector">
+                {['bg-skyblue', 'bg-red', 'bg-orange', 'bg-green', 'bg-purple', 'bg-blue', 'bg-gray'].map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`color-dot ${color} ${formData.service_color === color ? 'active' : ''}`}
+                    onClick={() => setFormData({ ...formData, service_color: color })}
+                  />
+                ))}
+              </div>
             </div>
+
+            <div className="input-group">
+              <input type="text" list="station-list" placeholder="行先" value={formData.destination} onChange={(e) => handleInputChange('destination', e.target.value)} />
+              <input type="text" placeholder="車番/号車" value={formData.car_number} onChange={(e) => handleInputChange('car_number', e.target.value)} />
+            </div>
+
             <div className="input-group-three">
-              <input type="text" placeholder="列番" value={formData.train_number} onChange={(e) => setFormData({ ...formData, train_number: e.target.value })} />
-              <input type="text" placeholder="運番" value={formData.operation_number} onChange={(e) => setFormData({ ...formData, operation_number: e.target.value })} />
-              <input type="text" placeholder="編成" value={formData.formation_number} onChange={(e) => setFormData({ ...formData, formation_number: e.target.value })} />
+              <input type="text" placeholder="列番" value={formData.train_number} onChange={(e) => handleInputChange('train_number', e.target.value)} />
+              <input type="text" placeholder="運番" value={formData.operation_number} onChange={(e) => handleInputChange('operation_number', e.target.value)} />
+              <input type="text" placeholder="編成" value={formData.formation_number} onChange={(e) => handleInputChange('formation_number', e.target.value)} />
             </div>
-            <input type="text" placeholder="車番/号車" value={formData.car_number} onChange={(e) => setFormData({ ...formData, car_number: e.target.value })} className="full-width" />
+
             <div className="input-group">
-              <input type="text" list="station-list" placeholder="乗車駅" value={formData.departure_station} onChange={(e) => setFormData({ ...formData, departure_station: e.target.value })} />
-              <input type="text" list="station-list" placeholder="下車駅" value={formData.arrival_station} onChange={(e) => setFormData({ ...formData, arrival_station: e.target.value })} />
+              <input type="text" list="station-list" placeholder="乗車駅" value={formData.departure_station} onChange={(e) => handleInputChange('departure_station', e.target.value)} />
+              <input type="text" list="station-list" placeholder="下車駅" value={formData.arrival_station} onChange={(e) => handleInputChange('arrival_station', e.target.value)} />
             </div>
             <div className="input-group">
-              <label>発時刻<input type="time" value={formData.departure_time} onChange={(e) => setFormData({ ...formData, departure_time: e.target.value })} /></label>
-              <label>着時刻<input type="time" value={formData.arrival_time} onChange={(e) => setFormData({ ...formData, arrival_time: e.target.value })} /></label>
+              <label>発時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} /></label>
+              <label>着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} /></label>
             </div>
-            <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => setFormData({ ...formData, memo: e.target.value })} />
+            <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => handleInputChange('memo', e.target.value)} />
 
             <div className="button-row" style={{ display: 'flex', gap: '10px' }}>
               <button type="submit" className="primary submit-btn" style={{ flex: 2 }}>
@@ -243,7 +269,7 @@ function App() {
             <Search size={18} className="search-icon" />
             <input
               type="text"
-              placeholder="路線、編成、列番などで絞り込み..."
+              placeholder="絞り込み..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
@@ -278,7 +304,9 @@ function App() {
                             </span>
                           </div>
                           <div className="info-middle">
-                            <span className={`badge ${getServiceColor(ride.service_type)}`}>{ride.service_type || '普通'}</span>
+                            <span className={`badge ${ride.service_color || getServiceColor(ride.service_type)}`}>
+                              {ride.service_type || '普通'}
+                            </span>
                             <span className="info-destination">
                               {ride.destination && <span> {ride.destination}</span>}
                             </span>
@@ -291,7 +319,7 @@ function App() {
                           </div>
                           {ride.memo && <div className="info-memo">{ride.memo}</div>}
                         </div>
-                        <div className="action-btns" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div className="action-btns">
                           <button onClick={() => handleDelete(ride.id)} className="delete-btn"><Trash2 size={16} /></button>
                           <button onClick={() => handleEditStart(ride)} className="edit-btn" style={{ background: 'none', border: 'none', color: '#0984e3', cursor: 'pointer', padding: '5px' }}><Edit2 size={16} /></button>
                         </div>

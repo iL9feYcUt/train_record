@@ -309,22 +309,6 @@ button.primary {
   white-space: nowrap;
 }
 
-.bg-red {
-  background-color: #ff006f;
-}
-
-.bg-orange {
-  background-color: #f4a261;
-}
-
-.bg-blue {
-  background-color: #00c5e8;
-}
-
-.bg-gray {
-  background-color: #6c757d;
-}
-
 /* Bottom Nav (中央寄せ修正済み) */
 .bottom-nav {
   position: fixed;
@@ -409,3 +393,39 @@ button.primary {
   justify-content: flex-start;
   align-items: center;
 }
+
+/* カラーセレクターのスタイル */
+.color-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 4px;
+  padding: 0 4px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.color-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s;
+}
+
+.color-dot.active {
+  border-color: var(--primary-color);
+  transform: scale(1.2);
+}
+
+/* 既存バッジの色の微調整 (App.css内の .bg-... をこれに上書き) */
+.bg-red { background-color: #ff009d; }
+.bg-orange { background-color: #ffa502; }
+.bg-skyblue { background-color: #00bbff; }
+.bg-green { background-color: #00a243; }
+.bg-purple { background-color: #c100c4; }
+.bg-blue { background-color: #0024d7; }
+.bg-gray { background-color: #747d8c; }
