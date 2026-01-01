@@ -82,18 +82,18 @@ function App() {
   // 路線名や種別から過去の色設定を推測する
   const handleInputChange = (field, value) => {
     const newFormData = { ...formData, [field]: value };
-    
+
     if (field === 'line_name' || field === 'service_type') {
       const line = field === 'line_name' ? value : formData.line_name;
       const service = field === 'service_type' ? value : formData.service_type;
-      
+
       // 過去の履歴から一致するものを探す
       const match = rides.find(r => r.line_name === line && r.service_type === service);
       if (match && match.service_color) {
         newFormData.service_color = match.service_color;
       }
     }
-    
+
     setFormData(newFormData);
   };
 
@@ -214,19 +214,34 @@ function App() {
               <label>日付<input type="date" value={formData.ride_date} onChange={(e) => handleInputChange('ride_date', e.target.value)} required /></label>
               <label>会社名<input type="text" list="company-list" placeholder="JR東日本" value={formData.railway_company} onChange={(e) => handleInputChange('railway_company', e.target.value)} /></label>
             </div>
-            
+
             <div className="input-group-three">
               <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => handleInputChange('line_name', e.target.value)} />
               <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => handleInputChange('service_type', e.target.value)} />
+              {/* 色の選択肢 + カスタムカラーピッカー */}
               <div className="color-selector">
-                {['bg-skyblue', 'bg-red', 'bg-orange', 'bg-green', 'bg-purple', 'bg-blue', 'bg-gray'].map(color => (
+                {['bg-skyblue', 'bg-red', 'bg-orange', 'bg-green', 'bg-purple', 'bg-gray'].map(color => (
                   <button
                     key={color}
                     type="button"
                     className={`color-dot ${color} ${formData.service_color === color ? 'active' : ''}`}
                     onClick={() => setFormData({ ...formData, service_color: color })}
-                  />
+                  ></button>
                 ))}
+
+                {/* カスタムカラー選択 */}
+                <div className="custom-color-wrapper">
+                  <input
+                    type="color"
+                    id="customColor"
+                    value={formData.service_color.startsWith('#') ? formData.service_color : '#cccccc'}
+                    onChange={(e) => setFormData({ ...formData, service_color: e.target.value })}
+                    className="custom-color-input"
+                  />
+                  <label htmlFor="customColor" className={`custom-color-label ${formData.service_color.startsWith('#') ? 'active' : ''}`}>
+                    🎨
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -304,7 +319,10 @@ function App() {
                             </span>
                           </div>
                           <div className="info-middle">
-                            <span className={`badge ${ride.service_color || getServiceColor(ride.service_type)}`}>
+                            <span
+                              className={`badge ${!ride.service_color?.startsWith('#') ? (ride.service_color || getServiceColor(ride.service_type)) : ''}`}
+                              style={ride.service_color?.startsWith('#') ? { backgroundColor: ride.service_color } : {}}
+                            >
                               {ride.service_type || '普通'}
                             </span>
                             <span className="info-destination">

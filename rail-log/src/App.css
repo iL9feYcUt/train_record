@@ -36,7 +36,7 @@ body {
   max-width: 500px;
   /* スマホサイズに固定 */
   margin: 0 auto;
-  padding: 10px 15px 10px 15px;
+  padding: 10px 15px 100px 15px;
   box-sizing: border-box;
 }
 
@@ -116,7 +116,7 @@ body {
 .input-group-three {
   display: grid;
   gap: 10px;
-  margin: 12px 0;
+  margin: 12px 5px;
 }
 
 .input-group {
@@ -400,20 +400,10 @@ button.primary {
   align-items: center;
   justify-content: space-around;
   gap: 4px;
-  padding: 0 4px;
+  padding: 0 2px;
   background: #f8f9fa;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-}
-
-.color-dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  transition: transform 0.2s;
 }
 
 .color-dot.active {
@@ -427,5 +417,53 @@ button.primary {
 .bg-skyblue { background-color: #00bbff; }
 .bg-green { background-color: #00a243; }
 .bg-purple { background-color: #c100c4; }
-.bg-blue { background-color: #0024d7; }
 .bg-gray { background-color: #747d8c; }
+
+/* カスタムカラーピッカーのラッパー */
+.custom-color-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 10px;
+}
+
+/* 実際のinputは隠す */
+.custom-color-input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* パレットアイコンの見た目 */
+.custom-color-label {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: transform 0.2s;
+}
+
+.custom-color-label.active {
+  border-color: var(--accent-color);
+  transform: scale(1.2);
+  background: #eee;
+}
+
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
