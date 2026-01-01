@@ -107,6 +107,8 @@ body {
   padding: 8px;
   border-radius: 50%;
   cursor: pointer;
+  width: 38px;
+  height: 38px;
 }
 
 /* Form Elements */
@@ -114,7 +116,7 @@ body {
 .input-group-three {
   display: grid;
   gap: 10px;
-  margin-bottom: 12px;
+  margin: 12px 0;
 }
 
 .input-group {
