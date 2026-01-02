@@ -380,7 +380,7 @@ function App() {
                             {ride.departure_station} <ChevronRight size={14} className="arrow-icon" /> {ride.arrival_station}
                           </div>
                           <div className="info-details">
-                            {[ride.train_number, ride.formation_number, ride.car_number].filter(Boolean).join(' / ')}
+                            {[ride.train_number, ride.operation_number, ride.formation_number, ride.car_number].filter(Boolean).join(' / ')}
                           </div>
                           {ride.memo && <div className="info-memo">{ride.memo}</div>}
                         </div>
