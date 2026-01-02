@@ -187,6 +187,27 @@ function App() {
     return 'bg-gray'
   }
 
+  const renderServiceType = (type) => {
+    if (!type) return '普通';
+
+    const target = "Fライナー";
+    if (type.includes(target)) {
+      // 文字列を "Fライナー" で分割する
+      const parts = type.split(target);
+      return (
+        <span className="service-with-logo" style={{ display: 'inline-flex', alignItems: 'center' }}>
+          {/* 前にある文字（あれば） */}
+          {parts[0]}
+          {/* 文字の代わりに画像を表示 */}
+          <img src="public/Fライナー.png" alt="Fライナー" className="f-liner-logo" />
+          {/* 後ろにある文字（"特急" など） */}
+          {parts[1]}
+        </span>
+      );
+    }
+    return type;
+  };
+
   if (!session) {
     return (
       <div className="container auth-container">
@@ -228,7 +249,7 @@ function App() {
             <datalist id="station-list">{suggestions.stations.map(s => <option key={s} value={s} />)}</datalist>
 
             <div className="input-group">
-              <label>日付<input type="date" value={formData.ride_date} onChange={(e) => handleInputChange('ride_date', e.target.value)} required /></label>
+              <label>日付<input style={{ width: '80%' }} type="date" value={formData.ride_date} onChange={(e) => handleInputChange('ride_date', e.target.value)} required /></label>
               <label>会社名<input type="text" list="company-list" placeholder="JR東日本" value={formData.railway_company} onChange={(e) => handleInputChange('railway_company', e.target.value)} /></label>
             </div>
 
@@ -280,8 +301,8 @@ function App() {
               <input type="text" list="station-list" placeholder="下車駅" value={formData.arrival_station} onChange={(e) => handleInputChange('arrival_station', e.target.value)} />
             </div>
             <div className="input-group">
-              <label>発時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} /></label>
-              <label>着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} /></label>
+              <label>発時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} style={{ width: '80%' }} /></label>
+              <label>着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '80%' }} /></label>
             </div>
             <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => handleInputChange('memo', e.target.value)} />
 
@@ -348,7 +369,8 @@ function App() {
                               className={`badge ${!ride.service_color?.startsWith('#') ? (ride.service_color || getServiceColor(ride.service_type)) : ''}`}
                               style={ride.service_color?.startsWith('#') ? { backgroundColor: ride.service_color } : {}}
                             >
-                              {ride.service_type || '普通'}
+                              {/* 直接表示せずに関数を通す */}
+                              {renderServiceType(ride.service_type)}
                             </span>
                             <span className="info-destination">
                               {ride.destination && <span> {ride.destination}</span>}

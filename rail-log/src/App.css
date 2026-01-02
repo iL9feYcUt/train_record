@@ -252,6 +252,17 @@ button.primary {
   flex-wrap: wrap;
 }
 
+.f-liner-logo {
+  height: 1.0em;      /* 文字の高さに合わせる */
+  vertical-align: middle; /* 上下中央揃え */
+  margin: 0 2px 0 0;      /* 左右にわずかな隙間 */
+  display: inline-block;
+}
+
+.service-with-logo {
+  line-height: 100%;
+}
+
 .info-destination {
   font-size: 15px;
   color: var(--text-main);
