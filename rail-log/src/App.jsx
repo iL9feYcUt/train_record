@@ -199,7 +199,7 @@ function App() {
           {/* 前にある文字（あれば） */}
           {parts[0]}
           {/* 文字の代わりに画像を表示 */}
-          <img src="public/Fライナー.png" alt="Fライナー" className="f-liner-logo" />
+          <img src="/train_record/Fライナー.png" alt="Fライナー" className="f-liner-logo" />
           {/* 後ろにある文字（"特急" など） */}
           {parts[1]}
         </span>

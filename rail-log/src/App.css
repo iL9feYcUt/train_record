@@ -102,7 +102,7 @@ body {
 }
 
 .icon-btn-logout {
-  background: #eee;
+  background: transparent;
   border: none;
   padding: 8px;
   border-radius: 50%;
@@ -220,7 +220,7 @@ button.primary {
   align-items: center;
   font-size: 12px;
   font-weight: 700;
-  width: 50px;
+  width: 52px;
   flex-shrink: 0;
 }
 
@@ -247,7 +247,7 @@ button.primary {
 .info-middle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   margin-bottom: 6px;
   flex-wrap: wrap;
 }
@@ -318,6 +318,8 @@ button.primary {
   color: #fff;
   font-weight: bold;
   white-space: nowrap;
+  vertical-align: middle;
+  line-height: 150%;
 }
 
 /* Bottom Nav (中央寄せ修正済み) */
