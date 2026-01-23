@@ -1,7 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 import { Train, Calendar, Clock, LogOut, PlusCircle, List, Trash2, ChevronRight, Search, Edit2, X } from 'lucide-react'
 import './App.css'
+
+// --- ODPT API 設定 ---
+const API_KEY = 'od5dwqe1ja91vjtdq6uij9tfgqhrce8wgzx20jt76z68tswjetzgxtfxqng09vwx';
+const BASE_URL = 'https://api-challenge.odpt.org/api/v4';
 
 function App() {
   const [session, setSession] = useState(null)
@@ -11,6 +15,9 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [editingId, setEditingId] = useState(null)
 
+  // API用のマスターデータ
+  const [railwayMaster, setRailwayMaster] = useState([]);
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
@@ -19,27 +26,38 @@ function App() {
     ride_date: new Date().toISOString().split('T')[0],
     railway_company: '', line_name: '', destination: '', train_number: '',
     operation_number: '', formation_number: '', service_type: '',
-    service_color: 'bg-skyblue', // 初期値
+    service_color: 'bg-skyblue',
     car_number: '', departure_station: '', arrival_station: '',
     departure_time: '', arrival_time: '', memo: ''
   })
 
   const [isCompact, setIsCompact] = useState(false);
 
+  // --- 1. ODPT マスターデータの取得 (初期起動時) ---
   useEffect(() => {
-    const handleScroll = () => {
-      // 50px以上スクロールしたらコンパクトモードにする
-      if (window.scrollY > 50) {
-        setIsCompact(true);
-      } else {
-        setIsCompact(false);
+    const fetchMasterData = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/odpt:Railway?odpt:operator=odpt.Operator:JR-East&acl:consumerKey=${API_KEY}`);
+        const data = await res.json();
+        if (Array.isArray(data)) setRailwayMaster(data);
+      } catch (err) {
+        console.error("ODPT: 路線データの取得失敗", err);
       }
     };
+    fetchMasterData();
+  }, []);
 
+  // スクロールによるヘッダーのコンパクト化
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 50) setIsCompact(true);
+      else setIsCompact(false);
+    };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Supabase 認証
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -52,6 +70,69 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // --- 2. 自動補完ロジック (API連携) ---
+  const autoFillFromAPI = useCallback(async (stationName, trainNo, targetField) => {
+    if (railwayMaster.length === 0 || !stationName || !trainNo) return;
+
+    const targetRailways = railwayMaster.filter(r => 
+      r['odpt:stationOrder']?.some(s => s['odpt:stationTitle']?.['ja'] === stationName)
+    );
+    if (targetRailways.length === 0) return;
+
+    const day = new Date(formData.ride_date).getDay();
+    const calendar = (day === 0 || day === 6) ? 'SaturdayHoliday' : 'Weekday';
+    const directions = ['Northbound', 'Southbound', 'Outbound', 'Inbound', 'Eastbound', 'Westbound'];
+
+    for (const rail of targetRailways) {
+      const railSuffix = rail['owl:sameAs'].split(':').pop(); 
+      const stationObj = rail['odpt:stationOrder'].find(s => s['odpt:stationTitle']['ja'] === stationName);
+      const stationId = stationObj['odpt:station'].split('.').pop(); 
+      
+      for (const dir of directions) {
+        const timetableId = `odpt.StationTimetable:${railSuffix}.${stationId}.${dir}.${calendar}`;
+        const url = `${BASE_URL}/odpt:StationTimetable?owl:sameAs=${timetableId}&acl:consumerKey=${API_KEY}`;
+        
+        try {
+          const res = await fetch(url);
+          const data = await res.json();
+          if (!data || data.length === 0) continue;
+
+          const trainData = data[0]['odpt:stationTimetableObject']?.find(t => 
+            t['odpt:trainNumber']?.toUpperCase() === trainNo.toUpperCase()
+          );
+          
+          if (trainData) {
+            const typeMap = { 'Local': '各駅停車', 'Rapid': '快速', 'SpecialRapid': '特別快速' };
+            const typeRaw = trainData['odpt:trainType'].split('.').pop();
+            const serviceType = typeMap[typeRaw] || typeRaw;
+
+            const destStationId = trainData['odpt:destinationStation'][0];
+            let destName = "";
+            railwayMaster.forEach(r => {
+              const found = r['odpt:stationOrder']?.find(s => s['odpt:station'] === destStationId);
+              if (found) destName = found['odpt:stationTitle']['ja'];
+            });
+
+            if (targetField === 'departure') {
+              setFormData(prev => ({
+                ...prev,
+                departure_time: trainData['odpt:departureTime'],
+                line_name: rail['odpt:railwayTitle']['ja'],
+                railway_company: 'JR東日本',
+                service_type: serviceType,
+                destination: destName
+              }));
+            } else if (targetField === 'arrival') {
+              setFormData(prev => ({ ...prev, arrival_time: trainData['odpt:departureTime'] }));
+            }
+            return;
+          }
+        } catch (e) { console.error(e); }
+      }
+    }
+  }, [railwayMaster, formData.ride_date]);
+
+  // 入力補完用のリスト作成
   const suggestions = useMemo(() => {
     const getUnique = (key) => [...new Set(rides.map(r => r[key]).filter(Boolean))]
     return {
@@ -62,29 +143,29 @@ function App() {
     }
   }, [rides])
 
-  const filteredRides = useMemo(() => {
-    const query = searchQuery.toLowerCase()
-    return rides.filter(ride =>
-      ride.line_name?.toLowerCase().includes(query) ||
-      ride.formation_number?.toLowerCase().includes(query) ||
-      ride.railway_company?.toLowerCase().includes(query) ||
-      ride.train_number?.toLowerCase().includes(query) ||
-      ride.departure_station?.toLowerCase().includes(query) ||
-      ride.arrival_station?.toLowerCase().includes(query) ||
-      ride.destination?.toLowerCase().includes(query) ||
-      ride.memo?.toLowerCase().includes(query)
-    )
-  }, [rides, searchQuery])
+  // 入力ハンドラー
+  const handleInputChange = (field, value) => {
+    const newFormData = { ...formData, [field]: value };
+    setFormData(newFormData);
 
-  const groupedRides = useMemo(() => {
-    const groups = {}
-    filteredRides.forEach(ride => {
-      const date = ride.ride_date
-      if (!groups[date]) groups[date] = []
-      groups[date].push(ride)
-    })
-    return groups
-  }, [filteredRides])
+    if (field === 'departure_station' || field === 'train_number') {
+      const s = field === 'departure_station' ? value : formData.departure_station;
+      const t = field === 'train_number' ? value : formData.train_number;
+      if (s && t) autoFillFromAPI(s, t, 'departure');
+    }
+    if (field === 'arrival_station' && formData.train_number) {
+      autoFillFromAPI(value, formData.train_number, 'arrival');
+    }
+
+    if (field === 'line_name' || field === 'service_type') {
+      const line = field === 'line_name' ? value : formData.line_name;
+      const service = field === 'service_type' ? value : formData.service_type;
+      const match = rides.find(r => r.line_name === line && r.service_type === service);
+      if (match && match.service_color) {
+        setFormData(prev => ({ ...prev, service_color: match.service_color }));
+      }
+    }
+  };
 
   const fetchRides = async () => {
     const { data, error } = await supabase
@@ -96,66 +177,11 @@ function App() {
     if (!error) setRides(data)
   }
 
-  // 路線名や種別から過去の色設定を推測する
-  const handleInputChange = (field, value) => {
-    const newFormData = { ...formData, [field]: value };
-
-    if (field === 'line_name' || field === 'service_type') {
-      const line = field === 'line_name' ? value : formData.line_name;
-      const service = field === 'service_type' ? value : formData.service_type;
-
-      // 過去の履歴から一致するものを探す
-      const match = rides.find(r => r.line_name === line && r.service_type === service);
-      if (match && match.service_color) {
-        newFormData.service_color = match.service_color;
-      }
-    }
-
-    setFormData(newFormData);
-  };
-
-  const handleEditStart = (ride) => {
-    setEditingId(ride.id)
-    setFormData({ ...ride, service_color: ride.service_color || getServiceColor(ride.service_type) })
-    setActiveTab('record')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const handleCancelEdit = () => {
-    setEditingId(null)
-    setFormData({
-      ride_date: new Date().toISOString().split('T')[0],
-      railway_company: '', line_name: '', destination: '', train_number: '',
-      operation_number: '', formation_number: '', service_type: '',
-      service_color: 'bg-skyblue',
-      car_number: '', departure_station: '', arrival_station: '',
-      departure_time: '', arrival_time: '', memo: ''
-    })
-  }
-
-  const handleDelete = async (id) => {
-    if (!confirm('この記録を削除しますか？')) return
-    const { error } = await supabase.from('rides').delete().eq('id', id)
-    if (!error) fetchRides()
-  }
-
-  const handleAuth = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    const result = isSignUp
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password })
-    if (result.error) alert(result.error.message)
-    setLoading(false)
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-
     const payload = { ...formData, user_id: session.user.id }
     let error;
-
     if (editingId) {
       const result = await supabase.from('rides').update(payload).eq('id', editingId)
       error = result.error
@@ -180,6 +206,41 @@ function App() {
     setLoading(false)
   }
 
+  const handleDelete = async (id) => {
+    if (!confirm('この記録を削除しますか？')) return
+    const { error } = await supabase.from('rides').delete().eq('id', id)
+    if (!error) fetchRides()
+  }
+
+  const handleEditStart = (ride) => {
+    setEditingId(ride.id)
+    setFormData({ ...ride, service_color: ride.service_color || getServiceColor(ride.service_type) })
+    setActiveTab('record')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setFormData({
+      ride_date: new Date().toISOString().split('T')[0],
+      railway_company: '', line_name: '', destination: '', train_number: '',
+      operation_number: '', formation_number: '', service_type: '',
+      service_color: 'bg-skyblue',
+      car_number: '', departure_station: '', arrival_station: '',
+      departure_time: '', arrival_time: '', memo: ''
+    })
+  }
+
+  const handleAuth = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    const result = isSignUp
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password })
+    if (result.error) alert(result.error.message)
+    setLoading(false)
+  }
+
   const getServiceColor = (type) => {
     if (!type) return 'bg-gray'
     if (type.includes('特急') || type.includes('快速') || type.includes('急行')) return 'bg-red'
@@ -189,24 +250,43 @@ function App() {
 
   const renderServiceType = (type) => {
     if (!type) return '普通';
-
     const target = "Fライナー";
     if (type.includes(target)) {
-      // 文字列を "Fライナー" で分割する
       const parts = type.split(target);
       return (
         <span className="service-with-logo" style={{ display: 'inline-flex', alignItems: 'center' }}>
-          {/* 前にある文字（あれば） */}
           {parts[0]}
-          {/* 文字の代わりに画像を表示 */}
           <img src="/train_record/Fライナー.png" alt="Fライナー" className="f-liner-logo" />
-          {/* 後ろにある文字（"特急" など） */}
           {parts[1]}
         </span>
       );
     }
     return type;
   };
+
+  const filteredRides = useMemo(() => {
+    const query = searchQuery.toLowerCase()
+    return rides.filter(ride =>
+      ride.line_name?.toLowerCase().includes(query) ||
+      ride.formation_number?.toLowerCase().includes(query) ||
+      ride.railway_company?.toLowerCase().includes(query) ||
+      ride.train_number?.toLowerCase().includes(query) ||
+      ride.departure_station?.toLowerCase().includes(query) ||
+      ride.arrival_station?.toLowerCase().includes(query) ||
+      ride.destination?.toLowerCase().includes(query) ||
+      ride.memo?.toLowerCase().includes(query)
+    )
+  }, [rides, searchQuery])
+
+  const groupedRides = useMemo(() => {
+    const groups = {}
+    filteredRides.forEach(ride => {
+      const date = ride.ride_date
+      if (!groups[date]) groups[date] = []
+      groups[date].push(ride)
+    })
+    return groups
+  }, [filteredRides])
 
   if (!session) {
     return (
@@ -250,38 +330,32 @@ function App() {
 
             <div className="input-group">
               <label>日付<input style={{ width: '80%' }} type="date" value={formData.ride_date} onChange={(e) => handleInputChange('ride_date', e.target.value)} required /></label>
-              <label>会社名<input type="text" list="company-list" placeholder="JR東日本" value={formData.railway_company} onChange={(e) => handleInputChange('railway_company', e.target.value)} /></label>
+              <label>会社名<input type="text" list="company-list" placeholder="鉄道会社" value={formData.railway_company} onChange={(e) => handleInputChange('railway_company', e.target.value)} /></label>
             </div>
 
             <div className="input-group">
               <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => handleInputChange('line_name', e.target.value)} />
               <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => handleInputChange('service_type', e.target.value)} />
             </div>
-            {/* 色の選択肢 + カスタムカラーピッカー */}
-            <div>
-              <div className="color-selector">
-                {['bg-skyblue', 'bg-red', 'bg-orange', 'bg-green', 'bg-purple', 'bg-gray'].map(color => (
-                  <button
-                    key={color}
-                    type="button"
-                    className={`color-dot ${color} ${formData.service_color === color ? 'active' : ''}`}
-                    onClick={() => setFormData({ ...formData, service_color: color })}
-                  ></button>
-                ))}
 
-                {/* カスタムカラー選択 */}
-                <div className="custom-color-wrapper">
-                  <input
-                    type="color"
-                    id="customColor"
-                    value={formData.service_color.startsWith('#') ? formData.service_color : '#cccccc'}
-                    onChange={(e) => setFormData({ ...formData, service_color: e.target.value })}
-                    className="custom-color-input"
-                  />
-                  <label htmlFor="customColor" className={`custom-color-label ${formData.service_color.startsWith('#') ? 'active' : ''}`}>
-                    🎨
-                  </label>
-                </div>
+            <div className="color-selector">
+              {['bg-skyblue', 'bg-red', 'bg-orange', 'bg-green', 'bg-purple', 'bg-gray'].map(color => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`color-dot ${color} ${formData.service_color === color ? 'active' : ''}`}
+                  onClick={() => setFormData({ ...formData, service_color: color })}
+                ></button>
+              ))}
+              <div className="custom-color-wrapper">
+                <input
+                  type="color"
+                  id="customColor"
+                  value={formData.service_color.startsWith('#') ? formData.service_color : '#cccccc'}
+                  onChange={(e) => setFormData({ ...formData, service_color: e.target.value })}
+                  className="custom-color-input"
+                />
+                <label htmlFor="customColor" className={`custom-color-label ${formData.service_color.startsWith('#') ? 'active' : ''}`}>🎨</label>
               </div>
             </div>
 
@@ -300,10 +374,12 @@ function App() {
               <input type="text" list="station-list" placeholder="乗車駅" value={formData.departure_station} onChange={(e) => handleInputChange('departure_station', e.target.value)} />
               <input type="text" list="station-list" placeholder="下車駅" value={formData.arrival_station} onChange={(e) => handleInputChange('arrival_station', e.target.value)} />
             </div>
+
             <div className="input-group">
-              <label>発時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} style={{ width: '80%' }} /></label>
-              <label>着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '80%' }} /></label>
+              <label>発車時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} style={{ width: '80%' }} /></label>
+              <label>到着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '80%' }} /></label>
             </div>
+
             <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => handleInputChange('memo', e.target.value)} />
 
             <div className="button-row" style={{ display: 'flex', gap: '10px' }}>
@@ -348,7 +424,6 @@ function App() {
                     <span>{date.replace(/-/g, '/')}</span>
                     <span className="date-count">({groupedRides[date].length}件)</span>
                   </div>
-
                   {groupedRides[date].map(ride => (
                     <div key={ride.id} className="history-card card">
                       <div className="history-main">
@@ -359,34 +434,29 @@ function App() {
                         </div>
                         <div className="history-info-col">
                           <div className="info-top">
-                            <span className="info-company">
-                              {ride.railway_company}
-                              <span className="info-line">{ride.line_name}</span>
-                            </span>
+                            <span className="info-company">{ride.railway_company}<span className="info-line">{ride.line_name}</span></span>
                           </div>
                           <div className="info-middle">
                             <span
                               className={`badge ${!ride.service_color?.startsWith('#') ? (ride.service_color || getServiceColor(ride.service_type)) : ''}`}
                               style={ride.service_color?.startsWith('#') ? { backgroundColor: ride.service_color } : {}}
-                            >
-                              {/* 直接表示せずに関数を通す */}
-                              {renderServiceType(ride.service_type)}
-                            </span>
-                            <span className="info-destination">
-                              {ride.destination && <span> {ride.destination}</span>}
-                            </span>
+                            >{renderServiceType(ride.service_type)}</span>
+                            <span className="info-destination">{ride.destination && <span> {ride.destination}</span>}</span>
                           </div>
-                          <div className="info-stations">
-                            {ride.departure_station} <ChevronRight size={14} className="arrow-icon" /> {ride.arrival_station}
-                          </div>
-                          <div className="info-details">
-                            {[ride.train_number, ride.operation_number, ride.formation_number, ride.car_number].filter(Boolean).join(' / ')}
-                          </div>
+                          <div className="info-stations">{ride.departure_station} <ChevronRight size={14} className="arrow-icon" /> {ride.arrival_station}</div>
+                          <div className="info-details">{[ride.train_number, ride.operation_number, ride.formation_number, ride.car_number].filter(Boolean).join(' / ')}</div>
                           {ride.memo && <div className="info-memo">{ride.memo}</div>}
                         </div>
                         <div className="action-btns">
                           <button onClick={() => handleDelete(ride.id)} className="delete-btn"><Trash2 size={16} /></button>
-                          <button onClick={() => handleEditStart(ride)} className="edit-btn" style={{ background: 'none', border: 'none', color: '#0984e3', cursor: 'pointer', padding: '5px' }}><Edit2 size={16} /></button>
+                          {/* ここを修正：元のインラインスタイルを復元 */}
+                          <button 
+                            onClick={() => handleEditStart(ride)} 
+                            className="edit-btn" 
+                            style={{ background: 'none', border: 'none', color: '#0984e3', cursor: 'pointer', padding: '5px' }}
+                          >
+                            <Edit2 size={16} />
+                          </button>
                         </div>
                       </div>
                     </div>
