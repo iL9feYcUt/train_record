@@ -33,7 +33,32 @@ function App() {
 
   const [isCompact, setIsCompact] = useState(false);
 
-  // --- 1. ODPT マスターデータの取得 (初期起動時) ---
+  // --- 路線・種別の正規化ヘルパー関数 ---
+  const getNormalizedInfo = (line, service) => {
+    let newLine = line;
+    let newService = service;
+
+    // 1. 路線名の修正
+    if (newLine === '京浜東北線・根岸線') {
+      newLine = '京浜東北・根岸線';
+    } else if  (newLine === '埼京線・川越線') {
+      newLine = '埼京・川越線';
+    }
+
+    // 2. 種別の「各駅停車」→「普通」変換
+    const keepLocalLines = [
+      '京浜東北・根岸線', '横浜線', '南武線', '中央・総武各駅停車',
+      '埼京・川越線', '山手線', '京葉線', '相鉄直通線'
+    ];
+
+    if (newService === '各駅停車' && !keepLocalLines.includes(newLine)) {
+      newService = '普通';
+    }
+
+    return { newLine, newService };
+  };
+
+  // --- 1. ODPT マスターデータの取得 ---
   useEffect(() => {
     const fetchMasterData = async () => {
       try {
@@ -47,7 +72,6 @@ function App() {
     fetchMasterData();
   }, []);
 
-  // スクロールによるヘッダーのコンパクト化
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 50) setIsCompact(true);
@@ -57,7 +81,6 @@ function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Supabase 認証
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -69,6 +92,14 @@ function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // 種別からデフォルト色を判定するヘルパー
+  const getServiceColor = (type) => {
+    if (!type) return 'bg-gray'
+    if (type.includes('特急') || type.includes('快速') || type.includes('急行')) return 'bg-red'
+    if (type.includes('普通') || type.includes('各駅停車')) return 'bg-blue'
+    return 'bg-gray'
+  }
 
   // --- 2. 自動補完ロジック (API連携) ---
   const autoFillFromAPI = useCallback(async (stationName, trainNo, targetField) => {
@@ -104,7 +135,15 @@ function App() {
           if (trainData) {
             const typeMap = { 'Local': '各駅停車', 'Rapid': '快速', 'SpecialRapid': '特別快速' };
             const typeRaw = trainData['odpt:trainType'].split('.').pop();
-            const serviceType = typeMap[typeRaw] || typeRaw;
+            const rawServiceType = typeMap[typeRaw] || typeRaw;
+            const rawLineName = rail['odpt:railwayTitle']['ja'];
+
+            // 正規化を適用
+            const { newLine, newService } = getNormalizedInfo(rawLineName, rawServiceType);
+
+            // 【追加】過去の履歴から色を推測
+            const colorMatch = rides.find(r => r.line_name === newLine && r.service_type === newService);
+            const inferredColor = colorMatch ? colorMatch.service_color : getServiceColor(newService);
 
             const destStationId = trainData['odpt:destinationStation'][0];
             let destName = "";
@@ -117,9 +156,10 @@ function App() {
               setFormData(prev => ({
                 ...prev,
                 departure_time: trainData['odpt:departureTime'],
-                line_name: rail['odpt:railwayTitle']['ja'],
+                line_name: newLine,
                 railway_company: 'JR東日本',
-                service_type: serviceType,
+                service_type: newService,
+                service_color: inferredColor, // 色を自動適用
                 destination: destName
               }));
             } else if (targetField === 'arrival') {
@@ -130,9 +170,8 @@ function App() {
         } catch (e) { console.error(e); }
       }
     }
-  }, [railwayMaster, formData.ride_date]);
+  }, [railwayMaster, formData.ride_date, rides]); // ridesを依存関係に追加
 
-  // 入力補完用のリスト作成
   const suggestions = useMemo(() => {
     const getUnique = (key) => [...new Set(rides.map(r => r[key]).filter(Boolean))]
     return {
@@ -143,10 +182,23 @@ function App() {
     }
   }, [rides])
 
-  // 入力ハンドラー
+  // --- 3. 入力ハンドラー ---
   const handleInputChange = (field, value) => {
-    const newFormData = { ...formData, [field]: value };
-    setFormData(newFormData);
+    let updatedFormData = { ...formData, [field]: value };
+
+    if (field === 'line_name' || field === 'service_type') {
+      const { newLine, newService } = getNormalizedInfo(updatedFormData.line_name, updatedFormData.service_type);
+      updatedFormData.line_name = newLine;
+      updatedFormData.service_type = newService;
+
+      // 手入力時も色推測を適用
+      const match = rides.find(r => r.line_name === updatedFormData.line_name && r.service_type === updatedFormData.service_type);
+      if (match && match.service_color) {
+        updatedFormData.service_color = match.service_color;
+      }
+    }
+
+    setFormData(updatedFormData);
 
     if (field === 'departure_station' || field === 'train_number') {
       const s = field === 'departure_station' ? value : formData.departure_station;
@@ -155,15 +207,6 @@ function App() {
     }
     if (field === 'arrival_station' && formData.train_number) {
       autoFillFromAPI(value, formData.train_number, 'arrival');
-    }
-
-    if (field === 'line_name' || field === 'service_type') {
-      const line = field === 'line_name' ? value : formData.line_name;
-      const service = field === 'service_type' ? value : formData.service_type;
-      const match = rides.find(r => r.line_name === line && r.service_type === service);
-      if (match && match.service_color) {
-        setFormData(prev => ({ ...prev, service_color: match.service_color }));
-      }
     }
   };
 
@@ -189,7 +232,6 @@ function App() {
       const result = await supabase.from('rides').insert([payload])
       error = result.error
     }
-
     if (!error) {
       alert(editingId ? '更新しました！' : '記録しました！')
       setEditingId(null)
@@ -201,7 +243,7 @@ function App() {
       }))
       setActiveTab('history')
     } else {
-      alert('エラーが発生しました: ' + error.message)
+      alert('エラー: ' + error.message)
     }
     setLoading(false)
   }
@@ -234,18 +276,9 @@ function App() {
   const handleAuth = async (e) => {
     e.preventDefault()
     setLoading(true)
-    const result = isSignUp
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password })
+    const result = isSignUp ? await supabase.auth.signUp({ email, password }) : await supabase.auth.signInWithPassword({ email, password })
     if (result.error) alert(result.error.message)
     setLoading(false)
-  }
-
-  const getServiceColor = (type) => {
-    if (!type) return 'bg-gray'
-    if (type.includes('特急') || type.includes('快速') || type.includes('急行')) return 'bg-red'
-    if (type.includes('普通') || type.includes('各駅停車')) return 'bg-blue'
-    return 'bg-gray'
   }
 
   const renderServiceType = (type) => {
@@ -297,13 +330,9 @@ function App() {
           <form onSubmit={handleAuth} className="auth-form">
             <input type="email" placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} required />
             <input type="password" placeholder="パスワード" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            <button type="submit" className="primary" disabled={loading}>
-              {loading ? '処理中...' : (isSignUp ? '新規登録' : 'ログイン')}
-            </button>
+            <button type="submit" className="primary" disabled={loading}>{isSignUp ? '新規登録' : 'ログイン'}</button>
           </form>
-          <button onClick={() => setIsSignUp(!isSignUp)} className="text-btn">
-            {isSignUp ? 'ログイン画面へ' : '新規登録画面へ'}
-          </button>
+          <button onClick={() => setIsSignUp(!isSignUp)} className="text-btn">{isSignUp ? 'ログイン画面へ' : '新規登録画面へ'}</button>
         </div>
       </div>
     )
@@ -383,14 +412,8 @@ function App() {
             <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => handleInputChange('memo', e.target.value)} />
 
             <div className="button-row" style={{ display: 'flex', gap: '10px' }}>
-              <button type="submit" className="primary submit-btn" style={{ flex: 2 }}>
-                {editingId ? '変更を保存' : '記録を保存'}
-              </button>
-              {editingId && (
-                <button type="button" onClick={handleCancelEdit} className="text-btn cancel-btn" style={{ flex: 1, textDecoration: 'none', background: '#eee', borderRadius: '12px', color: '#666', marginTop: 0 }}>
-                  キャンセル
-                </button>
-              )}
+              <button type="submit" className="primary submit-btn" style={{ flex: 2 }}>{editingId ? '変更を保存' : '記録を保存'}</button>
+              {editingId && <button type="button" onClick={handleCancelEdit} className="text-btn cancel-btn" style={{ flex: 1, textDecoration: 'none', background: '#eee', borderRadius: '12px', color: '#666', marginTop: 0 }}>キャンセル</button>}
             </div>
           </form>
         </div>
@@ -449,14 +472,7 @@ function App() {
                         </div>
                         <div className="action-btns">
                           <button onClick={() => handleDelete(ride.id)} className="delete-btn"><Trash2 size={16} /></button>
-                          {/* ここを修正：元のインラインスタイルを復元 */}
-                          <button 
-                            onClick={() => handleEditStart(ride)} 
-                            className="edit-btn" 
-                            style={{ background: 'none', border: 'none', color: '#0984e3', cursor: 'pointer', padding: '5px' }}
-                          >
-                            <Edit2 size={16} />
-                          </button>
+                          <button onClick={() => handleEditStart(ride)} className="edit-btn" style={{ background: 'none', border: 'none', color: '#0984e3', cursor: 'pointer', padding: '5px' }}><Edit2 size={16} /></button>
                         </div>
                       </div>
                     </div>
@@ -469,12 +485,8 @@ function App() {
       )}
 
       <nav className="bottom-nav">
-        <button className={activeTab === 'record' ? 'active' : ''} onClick={() => setActiveTab('record')}>
-          <PlusCircle size={24} /><span>記録</span>
-        </button>
-        <button className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>
-          <List size={24} /><span>履歴</span>
-        </button>
+        <button className={activeTab === 'record' ? 'active' : ''} onClick={() => setActiveTab('record')}><PlusCircle size={24} /><span>記録</span></button>
+        <button className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}><List size={24} /><span>履歴</span></button>
       </nav>
     </div>
   )
