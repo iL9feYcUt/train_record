@@ -6,6 +6,7 @@ import './App.css'
 // --- ODPT API 設定 ---
 const API_KEY = 'od5dwqe1ja91vjtdq6uij9tfgqhrce8wgzx20jt76z68tswjetzgxtfxqng09vwx';
 const BASE_URL = 'https://api-challenge.odpt.org/api/v4';
+const GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz-pqpXHL4WVQpWApwHBq2zQz2lDDODt3MLPXdxboLje3NoAUXZ-wuNA-LK51ILYpVp/exec';
 
 function App() {
   const [session, setSession] = useState(null)
@@ -41,7 +42,7 @@ function App() {
     // 1. 路線名の修正
     if (newLine === '京浜東北線・根岸線') {
       newLine = '京浜東北・根岸線';
-    } else if  (newLine === '埼京線・川越線') {
+    } else if (newLine === '埼京線・川越線') {
       newLine = '埼京・川越線';
     }
 
@@ -93,6 +94,16 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  useEffect(() => {
+    if (
+      formData.line_name === '京浜東北・根岸線' &&
+      formData.train_number &&
+      !formData.formation_number
+    ) {
+      fetchFormationFromGAS(formData.train_number);
+    }
+  }, [formData.line_name, formData.train_number]);
+  
   // 種別からデフォルト色を判定するヘルパー
   const getServiceColor = (type) => {
     if (!type) return 'bg-gray'
@@ -105,7 +116,7 @@ function App() {
   const autoFillFromAPI = useCallback(async (stationName, trainNo, targetField) => {
     if (railwayMaster.length === 0 || !stationName || !trainNo) return;
 
-    const targetRailways = railwayMaster.filter(r => 
+    const targetRailways = railwayMaster.filter(r =>
       r['odpt:stationOrder']?.some(s => s['odpt:stationTitle']?.['ja'] === stationName)
     );
     if (targetRailways.length === 0) return;
@@ -115,23 +126,23 @@ function App() {
     const directions = ['Northbound', 'Southbound', 'Outbound', 'Inbound', 'Eastbound', 'Westbound'];
 
     for (const rail of targetRailways) {
-      const railSuffix = rail['owl:sameAs'].split(':').pop(); 
+      const railSuffix = rail['owl:sameAs'].split(':').pop();
       const stationObj = rail['odpt:stationOrder'].find(s => s['odpt:stationTitle']['ja'] === stationName);
-      const stationId = stationObj['odpt:station'].split('.').pop(); 
-      
+      const stationId = stationObj['odpt:station'].split('.').pop();
+
       for (const dir of directions) {
         const timetableId = `odpt.StationTimetable:${railSuffix}.${stationId}.${dir}.${calendar}`;
         const url = `${BASE_URL}/odpt:StationTimetable?owl:sameAs=${timetableId}&acl:consumerKey=${API_KEY}`;
-        
+
         try {
           const res = await fetch(url);
           const data = await res.json();
           if (!data || data.length === 0) continue;
 
-          const trainData = data[0]['odpt:stationTimetableObject']?.find(t => 
+          const trainData = data[0]['odpt:stationTimetableObject']?.find(t =>
             t['odpt:trainNumber']?.toUpperCase() === trainNo.toUpperCase()
           );
-          
+
           if (trainData) {
             const typeMap = { 'Local': '各駅停車', 'Rapid': '快速', 'SpecialRapid': '特別快速' };
             const typeRaw = trainData['odpt:trainType'].split('.').pop();
@@ -181,6 +192,28 @@ function App() {
       stations: [...new Set([...rides.map(r => r.departure_station), ...rides.map(r => r.arrival_station)].filter(Boolean))]
     }
   }, [rides])
+
+  const fetchFormationFromGAS = async (trainNo) => {
+    try {
+      const res = await fetch(
+        `${GAS_WEBAPP_URL}?train=${encodeURIComponent(trainNo)}`
+      );
+      const data = await res.json();
+
+      if (
+        data?.result &&
+        !data.result.includes('未') &&
+        !data.result.includes('エラー')
+      ) {
+        setFormData(prev => ({
+          ...prev,
+          formation_number: data.result
+        }));
+      }
+    } catch {
+      // 失敗時は何もしない
+    }
+  };
 
   // --- 3. 入力ハンドラー ---
   const handleInputChange = (field, value) => {
