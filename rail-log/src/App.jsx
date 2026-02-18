@@ -392,6 +392,21 @@ function App() {
     return type;
   };
 
+  const computeDelayedTime = (timeStr, delayMinutes) => {
+    if (!timeStr) return ''
+    const hhmm = timeStr.slice(0, 5)
+    const [hhRaw, mmRaw] = hhmm.split(':')
+    const hh = parseInt(hhRaw || '0', 10)
+    const mm = parseInt(mmRaw || '0', 10)
+    const delay = parseInt(delayMinutes || '0', 10)
+    if (isNaN(hh) || isNaN(mm) || isNaN(delay)) return hhmm
+    const total = hh * 60 + mm + delay
+    const newH = Math.floor(total / 60) % 24
+    const newM = total % 60
+    const pad = (n) => n.toString().padStart(2, '0')
+    return `${pad(newH)}:${pad(newM)}`
+  }
+
   const filteredRides = useMemo(() => {
     const query = searchQuery.toLowerCase()
     return rides.filter(ride =>
@@ -549,7 +564,7 @@ function App() {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: 6 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
                 <input type="checkbox" checked={formData.is_delayed} onChange={(e) => handleInputChange('is_delayed', e.target.checked)} /> 遅延
               </label>
               {formData.is_delayed && (
@@ -601,9 +616,31 @@ function App() {
                     <div key={ride.id} className="history-card card">
                       <div className="history-main">
                         <div className="history-time-col">
-                          <div className="time-node">● {ride.departure_time?.slice(0, 5)}</div>
+                          <div className="time-node">
+                            ●{
+                              ride.is_delayed && ride.delay_minutes ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' ,marginLeft: 5}}>
+                                  <span style={{ color: '#636e72', textDecoration: 'line-through', fontSize: 9 }}>{ride.departure_time?.slice(0, 5)}</span>
+                                  <span style={{ color: 'red', fontSize: 12, fontWeight: 600 }}>{computeDelayedTime(ride.departure_time, ride.delay_minutes)}</span>
+                                </div>
+                              ) : (
+                                <span style={{ marginLeft: 6 }}>{ride.departure_time?.slice(0, 5)}</span>
+                              )
+                            }
+                          </div>
                           <div className="time-line"></div>
-                          <div className="time-node">■ {ride.arrival_time?.slice(0, 5)}</div>
+                          <div className="time-node">
+                            ■{
+                              ride.is_delayed && ride.delay_minutes ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' ,marginLeft: 5}}>
+                                  <span style={{ color: '#636e72', textDecoration: 'line-through', fontSize: 9 }}>{ride.arrival_time?.slice(0, 5)}</span>
+                                  <span style={{ color: 'red', fontSize: 12, fontWeight: 600 }}>{computeDelayedTime(ride.arrival_time, ride.delay_minutes)}</span>
+                                </div>
+                              ) : (
+                                <span style={{ marginLeft: 6 }}>{ride.arrival_time?.slice(0, 5)}</span>
+                              )
+                            }
+                          </div>
                         </div>
                         <div className="history-info-col">
                           {(() => {

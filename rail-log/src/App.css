@@ -236,6 +236,10 @@ button.primary {
   min-width: 0;
 }
 
+.time-node {
+  display: flex;
+}
+
 .info-top {
   display: flex;
   justify-content: space-between;
