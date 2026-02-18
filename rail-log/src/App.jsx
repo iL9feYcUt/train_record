@@ -28,11 +28,18 @@ function App() {
     railway_company: '', line_name: '', destination: '', train_number: '',
     operation_number: '', formation_number: '', service_type: '',
     service_color: 'bg-skyblue',
+    // 複数区間対応: segmentsは配列で区間情報を保持
+    segments: [],
     car_number: '', departure_station: '', arrival_station: '',
-    departure_time: '', arrival_time: '', memo: ''
+    departure_time: '', arrival_time: '',
+    // 遅延情報
+    is_delayed: false, delay_minutes: '',
+    memo: ''
   })
 
   const [isCompact, setIsCompact] = useState(false);
+  const [multipleSegments, setMultipleSegments] = useState(false);
+  const [tempSegment, setTempSegment] = useState({ railway_company: '', line_name: '', service_type: '', destination: '', service_color: 'bg-skyblue' });
 
   // --- 路線・種別の正規化ヘルパー関数 ---
   const getNormalizedInfo = (line, service) => {
@@ -185,13 +192,45 @@ function App() {
 
   const suggestions = useMemo(() => {
     const getUnique = (key) => [...new Set(rides.map(r => r[key]).filter(Boolean))]
-    return {
-      companies: getUnique('railway_company'),
-      lines: getUnique('line_name'),
-      services: getUnique('service_type'),
-      stations: [...new Set([...rides.map(r => r.departure_station), ...rides.map(r => r.arrival_station)].filter(Boolean))]
-    }
+    // segments内の候補も抽出
+    const segLines = [...new Set(rides.flatMap(r => (r.segments || []).map(s => s.line_name)).filter(Boolean))]
+    const segServices = [...new Set(rides.flatMap(r => (r.segments || []).map(s => s.service_type)).filter(Boolean))]
+    const segCompanies = [...new Set(rides.flatMap(r => (r.segments || []).map(s => s.railway_company)).filter(Boolean))]
+    const companies = [...new Set([...getUnique('railway_company'), ...segCompanies].filter(Boolean))]
+    // 履歴に保存したときに "路線A → 路線B" のように結合している値が混ざることがあるため、候補から除外する
+    const isCompound = v => /→|->/.test(v)
+    const lines = [...new Set([...getUnique('line_name'), ...segLines].filter(Boolean))].filter(l => !isCompound(l))
+    const services = [...new Set([...getUnique('service_type'), ...segServices].filter(Boolean))].filter(s => !isCompound(s))
+    const stations = [...new Set([...rides.map(r => r.departure_station), ...rides.map(r => r.arrival_station)].filter(Boolean))]
+    return { companies, lines, services, stations }
   }, [rides])
+
+  // 区間エディタ用ハンドラ
+  const handleAddSegment = (segment) => {
+    setFormData(prev => ({ ...prev, segments: [...(prev.segments || []), segment] }))
+  }
+
+  const handleRemoveSegment = (index) => {
+    setFormData(prev => ({ ...prev, segments: prev.segments.filter((_, i) => i !== index) }))
+  }
+
+  const handleSegmentChange = (index, field, value) => {
+    setFormData(prev => {
+      const next = (prev.segments || []).map((s, i) => i === index ? { ...s, [field]: value } : s)
+      return { ...prev, segments: next }
+    })
+  }
+
+  const commitTempSegment = () => {
+    // 正規化して色推測してから追加
+    const { newLine, newService } = getNormalizedInfo(tempSegment.line_name, tempSegment.service_type)
+    const colorMatch = rides.find(r => r.line_name === newLine && r.service_type === newService)
+    // 優先順位: 既存履歴の色 -> 現在フォームの選択色 -> 種別推定色
+    const inferredColor = colorMatch ? colorMatch.service_color : (formData.service_color || tempSegment.service_color || getServiceColor(newService))
+    const seg = { ...tempSegment, line_name: newLine, service_type: newService, service_color: inferredColor }
+    handleAddSegment(seg)
+    setTempSegment({ railway_company: '', line_name: '', service_type: '', destination: '', service_color: 'bg-skyblue' })
+  }
 
   const fetchFormationFromGAS = async (trainNo) => {
     try {
@@ -256,7 +295,14 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
+    // segments がある場合は互換フィールドを上書きして保存
     const payload = { ...formData, user_id: session.user.id }
+    if (formData.segments && formData.segments.length > 0) {
+      const segs = formData.segments
+      payload.line_name = segs.map(s => s.line_name).filter(Boolean).join(' → ')
+      payload.service_type = segs.map(s => s.service_type).filter(Boolean).join(' → ')
+      payload.service_color = segs[0].service_color || getServiceColor(segs[0].service_type)
+    }
     let error;
     if (editingId) {
       const result = await supabase.from('rides').update(payload).eq('id', editingId)
@@ -272,8 +318,12 @@ function App() {
       setFormData(prev => ({
         ...prev, train_number: '', operation_number: '', formation_number: '',
         car_number: '', departure_station: prev.arrival_station,
-        arrival_station: '', departure_time: '', arrival_time: '', memo: ''
+        arrival_station: '', departure_time: '', arrival_time: '',
+        is_delayed: false, delay_minutes: '', memo: '',
+        segments: []
       }))
+      setMultipleSegments(false)
+      setTempSegment({ railway_company: '', line_name: '', service_type: '', destination: '', service_color: 'bg-skyblue' })
       setActiveTab('history')
     } else {
       alert('エラー: ' + error.message)
@@ -289,7 +339,17 @@ function App() {
 
   const handleEditStart = (ride) => {
     setEditingId(ride.id)
-    setFormData({ ...ride, service_color: ride.service_color || getServiceColor(ride.service_type) })
+    // 既にsegmentsがある場合は配列として扱う
+    const rideSegments = ride.segments && typeof ride.segments === 'string' ? JSON.parse(ride.segments) : ride.segments
+    const base = { ...ride, service_color: ride.service_color || getServiceColor(ride.service_type) }
+    if (rideSegments && rideSegments.length > 0) {
+      base.segments = rideSegments
+      setMultipleSegments(true)
+    } else {
+      base.segments = []
+      setMultipleSegments(false)
+    }
+    setFormData(base)
     setActiveTab('record')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -302,8 +362,10 @@ function App() {
       operation_number: '', formation_number: '', service_type: '',
       service_color: 'bg-skyblue',
       car_number: '', departure_station: '', arrival_station: '',
-      departure_time: '', arrival_time: '', memo: ''
+      departure_time: '', arrival_time: '', is_delayed: false, delay_minutes: '', memo: '', segments: []
     })
+    setMultipleSegments(false)
+    setTempSegment({ railway_company: '', line_name: '', service_type: '', destination: '', service_color: 'bg-skyblue' })
   }
 
   const handleAuth = async (e) => {
@@ -396,8 +458,52 @@ function App() {
             </div>
 
             <div className="input-group">
-              <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => handleInputChange('line_name', e.target.value)} />
-              <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => handleInputChange('service_type', e.target.value)} />
+              {!multipleSegments ? (
+                <>
+                  <input type="text" list="line-list" placeholder="路線名" value={formData.line_name} onChange={(e) => handleInputChange('line_name', e.target.value)} />
+                  <input type="text" list="service-list" placeholder="種別" value={formData.service_type} onChange={(e) => handleInputChange('service_type', e.target.value)} />
+                  <button type="button" className="text-btn" onClick={() => {
+                    setMultipleSegments(true)
+                    setTempSegment({ railway_company: formData.railway_company, line_name: formData.line_name, service_type: formData.service_type, destination: formData.destination, service_color: formData.service_color || 'bg-skyblue' })
+                    // 既存トップレベルはクリアして区間ベースに移行
+                    setFormData(prev => ({ ...prev, line_name: '', service_type: '', service_color: 'bg-skyblue' }))
+                  }}>区間を追加</button>
+                </>
+              ) : (
+                <div style={{ width: '100%', gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', justifyContent: 'center' }}>
+                    <input style={{ flex: 1.2, minWidth: 0 }} type="text" list="company-list" placeholder="会社名" value={tempSegment.railway_company} onChange={(e) => setTempSegment({ ...tempSegment, railway_company: e.target.value })} />
+                    <input style={{ flex: 1.6, minWidth: 0 }} type="text" list="line-list" placeholder="区間の路線名" value={tempSegment.line_name} onChange={(e) => setTempSegment({ ...tempSegment, line_name: e.target.value })} />
+                    <input style={{ flex: 1, minWidth: 0 }} type="text" list="service-list" placeholder="区間の種別" value={tempSegment.service_type} onChange={(e) => setTempSegment({ ...tempSegment, service_type: e.target.value })} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button type="button" className="primary" onClick={commitTempSegment}>区間を追加</button>
+                      <button type="button" className="text-btn" onClick={() => { setMultipleSegments(false); setTempSegment({ railway_company: '', line_name: '', service_type: '', destination: '', service_color: 'bg-skyblue' }) }}>区間編集をやめる</button>
+                    </div>
+                  </div>
+                  {formData.segments && formData.segments.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {formData.segments.map((s, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', gap: '0px', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '0px', alignItems: 'baseline' }}>
+                              <span style={{fontSize: '12px'}}>{s.railway_company || formData.railway_company}</span>
+                              <span className='info-line' style={{fontSize: '16px', fontWeight: 500 }}>{s.line_name}</span>
+                            </div>
+                            <div style={{ marginLeft: 8 }}>
+                              <span className={`badge ${!s.service_color?.startsWith('#') ? (s.service_color || getServiceColor(s.service_type)) : ''}`} style={s.service_color?.startsWith('#') ? { backgroundColor: s.service_color } : {}}>{renderServiceType(s.service_type)}</span>
+                            </div>
+                            <div style={{ marginLeft: 'auto' }}>
+                              <button type="button" className="text-btn" onClick={() => handleRemoveSegment(i)}>削除</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="color-selector">
@@ -440,6 +546,17 @@ function App() {
             <div className="input-group">
               <label>発車時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} style={{ width: '80%' }} /></label>
               <label>到着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '80%' }} /></label>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: 6 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" checked={formData.is_delayed} onChange={(e) => handleInputChange('is_delayed', e.target.checked)} /> 遅延
+              </label>
+              {formData.is_delayed && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  遅延分 <input type="number" min="0" value={formData.delay_minutes} onChange={(e) => handleInputChange('delay_minutes', e.target.value)} style={{ width: 80, padding: '6px', borderRadius: 6, border: '1px solid #ddd' }} /> 分
+                </label>
+              )}
             </div>
 
             <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => handleInputChange('memo', e.target.value)} />
@@ -489,16 +606,40 @@ function App() {
                           <div className="time-node">■ {ride.arrival_time?.slice(0, 5)}</div>
                         </div>
                         <div className="history-info-col">
-                          <div className="info-top">
-                            <span className="info-company">{ride.railway_company}<span className="info-line">{ride.line_name}</span></span>
-                          </div>
-                          <div className="info-middle">
-                            <span
-                              className={`badge ${!ride.service_color?.startsWith('#') ? (ride.service_color || getServiceColor(ride.service_type)) : ''}`}
-                              style={ride.service_color?.startsWith('#') ? { backgroundColor: ride.service_color } : {}}
-                            >{renderServiceType(ride.service_type)}</span>
-                            <span className="info-destination">{ride.destination && <span> {ride.destination}</span>}</span>
-                          </div>
+                          {(() => {
+                            const rideSegments = ride.segments && typeof ride.segments === 'string' ? JSON.parse(ride.segments) : ride.segments
+                            if (rideSegments && rideSegments.length > 0) {
+                              return (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  {rideSegments.map((s, idx) => (
+                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                      <div className='info-top' style={{ display: 'flex', gap: '0px', alignItems: 'baseline' }}>
+                                        <span className="info-company">{s.railway_company || ride.railway_company}<span className="info-line">{s.line_name}</span></span>
+                                      </div>
+                                      <div className='info-middle' style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+                                        <span className={`badge ${!s.service_color?.startsWith('#') ? (s.service_color || getServiceColor(s.service_type)) : ''}`} style={s.service_color?.startsWith('#') ? { backgroundColor: s.service_color } : {}}>{renderServiceType(s.service_type)}</span>
+                                        <span className='info-destination'>{ride.destination}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            }
+                            return (
+                              <>
+                                <div className="info-top">
+                                  <span className="info-company">{ride.railway_company}<span className="info-line">{ride.line_name}</span></span>
+                                </div>
+                                <div className="info-middle">
+                                  <span
+                                    className={`badge ${!ride.service_color?.startsWith('#') ? (ride.service_color || getServiceColor(ride.service_type)) : ''}`}
+                                    style={ride.service_color?.startsWith('#') ? { backgroundColor: ride.service_color } : {}}
+                                  >{renderServiceType(ride.service_type)}</span>
+                                  <span className="info-destination">{ride.destination && <span> {ride.destination}</span>}</span>
+                                </div>
+                              </>
+                            )
+                          })()}
                           <div className="info-stations">{ride.departure_station} <ChevronRight size={14} className="arrow-icon" /> {ride.arrival_station}</div>
                           <div className="info-details">{[ride.train_number, ride.operation_number, ride.formation_number, ride.car_number].filter(Boolean).join(' / ')}</div>
                           {ride.memo && <div className="info-memo">{ride.memo}</div>}
