@@ -66,6 +66,22 @@ function App() {
     return { newLine, newService };
   };
 
+  // ペイロードを正規化：空文字を null に、数値文字列は整数に変換
+  const sanitizePayload = (payload) => {
+    const out = { ...payload }
+    const intFields = ['formation_number', 'car_number', 'delay_minutes']
+    intFields.forEach((f) => {
+      const v = out[f]
+      if (v === '' || v === null || v === undefined) {
+        out[f] = null
+      } else {
+        const n = parseInt(String(v), 10)
+        out[f] = isNaN(n) ? null : n
+      }
+    })
+    return out
+  }
+
   // --- 1. ODPT マスターデータの取得 ---
   useEffect(() => {
     const fetchMasterData = async () => {
@@ -303,12 +319,16 @@ function App() {
       payload.service_type = segs.map(s => s.service_type).filter(Boolean).join(' → ')
       payload.service_color = segs[0].service_color || getServiceColor(segs[0].service_type)
     }
+
+    // 空文字を null にし、数値文字列は整数に変換して DB に送信
+    const sanitizedPayload = sanitizePayload(payload)
+
     let error;
     if (editingId) {
-      const result = await supabase.from('rides').update(payload).eq('id', editingId)
+      const result = await supabase.from('rides').update(sanitizedPayload).eq('id', editingId)
       error = result.error
     } else {
-      const result = await supabase.from('rides').insert([payload])
+      const result = await supabase.from('rides').insert([sanitizedPayload])
       error = result.error
     }
     if (!error) {
