@@ -236,10 +236,6 @@ button.primary {
   min-width: 0;
 }
 
-.time-node {
-  display: flex;
-}
-
 .info-top {
   display: flex;
   justify-content: space-between;
@@ -325,16 +321,6 @@ button.primary {
   white-space: nowrap;
   vertical-align: middle;
   line-height: 150%;
-}
-
-.delay-badge {
-  font-size: 12px;
-  background: #ff7675;
-  color: #fff;
-  padding: 4px 8px;
-  border-radius: 8px;
-  font-weight: 700;
-  margin-left: 6px;
 }
 
 /* Bottom Nav (中央寄せ修正済み) */

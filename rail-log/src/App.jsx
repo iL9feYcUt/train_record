@@ -15,6 +15,8 @@ function App() {
   const [activeTab, setActiveTab] = useState('record')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingId, setEditingId] = useState(null)
+  const [openDates, setOpenDates] = useState({})
+  const [selectedDate, setSelectedDate] = useState('')
 
   // API用のマスターデータ
   const [railwayMaster, setRailwayMaster] = useState([]);
@@ -31,10 +33,7 @@ function App() {
     // 複数区間対応: segmentsは配列で区間情報を保持
     segments: [],
     car_number: '', departure_station: '', arrival_station: '',
-    departure_time: '', arrival_time: '',
-    // 遅延情報
-    is_delayed: false, delay_minutes: '',
-    memo: ''
+    departure_time: '', arrival_time: '', memo: ''
   })
 
   const [isCompact, setIsCompact] = useState(false);
@@ -65,22 +64,6 @@ function App() {
 
     return { newLine, newService };
   };
-
-  // ペイロードを正規化：空文字を null に、数値文字列は整数に変換
-  const sanitizePayload = (payload) => {
-    const out = { ...payload }
-    const intFields = ['formation_number', 'car_number', 'delay_minutes']
-    intFields.forEach((f) => {
-      const v = out[f]
-      if (v === '' || v === null || v === undefined) {
-        out[f] = null
-      } else {
-        const n = parseInt(String(v), 10)
-        out[f] = isNaN(n) ? null : n
-      }
-    })
-    return out
-  }
 
   // --- 1. ODPT マスターデータの取得 ---
   useEffect(() => {
@@ -319,16 +302,12 @@ function App() {
       payload.service_type = segs.map(s => s.service_type).filter(Boolean).join(' → ')
       payload.service_color = segs[0].service_color || getServiceColor(segs[0].service_type)
     }
-
-    // 空文字を null にし、数値文字列は整数に変換して DB に送信
-    const sanitizedPayload = sanitizePayload(payload)
-
     let error;
     if (editingId) {
-      const result = await supabase.from('rides').update(sanitizedPayload).eq('id', editingId)
+      const result = await supabase.from('rides').update(payload).eq('id', editingId)
       error = result.error
     } else {
-      const result = await supabase.from('rides').insert([sanitizedPayload])
+      const result = await supabase.from('rides').insert([payload])
       error = result.error
     }
     if (!error) {
@@ -338,8 +317,7 @@ function App() {
       setFormData(prev => ({
         ...prev, train_number: '', operation_number: '', formation_number: '',
         car_number: '', departure_station: prev.arrival_station,
-        arrival_station: '', departure_time: '', arrival_time: '',
-        is_delayed: false, delay_minutes: '', memo: '',
+        arrival_station: '', departure_time: '', arrival_time: '', memo: '',
         segments: []
       }))
       setMultipleSegments(false)
@@ -382,7 +360,7 @@ function App() {
       operation_number: '', formation_number: '', service_type: '',
       service_color: 'bg-skyblue',
       car_number: '', departure_station: '', arrival_station: '',
-      departure_time: '', arrival_time: '', is_delayed: false, delay_minutes: '', memo: '', segments: []
+      departure_time: '', arrival_time: '', memo: '', segments: []
     })
     setMultipleSegments(false)
     setTempSegment({ railway_company: '', line_name: '', service_type: '', destination: '', service_color: 'bg-skyblue' })
@@ -412,24 +390,21 @@ function App() {
     return type;
   };
 
-  const computeDelayedTime = (timeStr, delayMinutes) => {
-    if (!timeStr) return ''
-    const hhmm = timeStr.slice(0, 5)
-    const [hhRaw, mmRaw] = hhmm.split(':')
-    const hh = parseInt(hhRaw || '0', 10)
-    const mm = parseInt(mmRaw || '0', 10)
-    const delay = parseInt(delayMinutes || '0', 10)
-    if (isNaN(hh) || isNaN(mm) || isNaN(delay)) return hhmm
-    const total = hh * 60 + mm + delay
-    const newH = Math.floor(total / 60) % 24
-    const newM = total % 60
-    const pad = (n) => n.toString().padStart(2, '0')
-    return `${pad(newH)}:${pad(newM)}`
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    if (Number.isNaN(d.getTime())) return dateStr.replace(/-/g, '/')
+    const weekdays = ['日','月','火','水','木','金','土']
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${weekdays[d.getDay()]}）`;
+  }
+
+  const toggleDate = (date) => {
+    setOpenDates(prev => ({ ...prev, [date]: Object.prototype.hasOwnProperty.call(prev, date) ? !prev[date] : false }))
   }
 
   const filteredRides = useMemo(() => {
     const query = searchQuery.toLowerCase()
-    return rides.filter(ride =>
+    const base = rides.filter(ride =>
       ride.line_name?.toLowerCase().includes(query) ||
       ride.formation_number?.toLowerCase().includes(query) ||
       ride.railway_company?.toLowerCase().includes(query) ||
@@ -439,7 +414,9 @@ function App() {
       ride.destination?.toLowerCase().includes(query) ||
       ride.memo?.toLowerCase().includes(query)
     )
-  }, [rides, searchQuery])
+    if (!selectedDate) return base
+    return base.filter(ride => ride.ride_date === selectedDate)
+  }, [rides, searchQuery, selectedDate])
 
   const groupedRides = useMemo(() => {
     const groups = {}
@@ -583,17 +560,6 @@ function App() {
               <label>到着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '80%' }} /></label>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: 6 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                <input type="checkbox" checked={formData.is_delayed} onChange={(e) => handleInputChange('is_delayed', e.target.checked)} /> 遅延
-              </label>
-              {formData.is_delayed && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  遅延分 <input type="number" min="0" value={formData.delay_minutes} onChange={(e) => handleInputChange('delay_minutes', e.target.value)} style={{ width: 80, padding: '6px', borderRadius: 6, border: '1px solid #ddd' }} /> 分
-                </label>
-              )}
-            </div>
-
             <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => handleInputChange('memo', e.target.value)} />
 
             <div className="button-row" style={{ display: 'flex', gap: '10px' }}>
@@ -604,13 +570,14 @@ function App() {
         </div>
       ) : (
         <div className="fade-in">
-          <div className="search-container card">
+          <div className="search-container card" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <Search size={18} className="search-icon" />
             <input
               type="text"
               placeholder={isCompact ? "" : "絞り込み..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onClick={() => { if (isCompact) window.scrollTo({ top: 0, behavior: 'smooth' }) }}
               className="search-input"
               style={{
                 width: isCompact ? '0px' : '100%',
@@ -621,46 +588,40 @@ function App() {
             />
           </div>
 
+          <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <label style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>日付指定
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid #ddd' }}
+                />
+              </label>
+              <button type="button" className="text-btn" onClick={() => setSelectedDate('')}>一覧表示</button>
+            </div>
+            <div style={{ fontSize: '12px', color: '#666' }}>{selectedDate ? `表示中： ${selectedDate.replace(/-/g, '/')}` : '全件表示中'}</div>
+          </div>
+
           <div className="history-list">
             {Object.keys(groupedRides).length === 0 ? (
               <div className="empty-state">該当する記録がありません</div>
             ) : (
               Object.keys(groupedRides).sort((a, b) => b.localeCompare(a)).map(date => (
                 <div key={date} className="history-date-group">
-                  <div className="date-header">
+                  <div className="date-header" onClick={() => toggleDate(date)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ChevronRight size={14} style={{ transform: (openDates[date] !== false) ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .18s' }} />
                     <Calendar size={14} />
-                    <span>{date.replace(/-/g, '/')}</span>
+                    <span>{formatDate(date)}</span>
                     <span className="date-count">({groupedRides[date].length}件)</span>
                   </div>
-                  {groupedRides[date].map(ride => (
+                  {openDates[date] !== false && groupedRides[date].map(ride => (
                     <div key={ride.id} className="history-card card">
                       <div className="history-main">
                         <div className="history-time-col">
-                          <div className="time-node">
-                            ●{
-                              ride.is_delayed && ride.delay_minutes ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' ,marginLeft: 5}}>
-                                  <span style={{ color: '#636e72', textDecoration: 'line-through', fontSize: 9 }}>{ride.departure_time?.slice(0, 5)}</span>
-                                  <span style={{ color: 'red', fontSize: 12, fontWeight: 600 }}>{computeDelayedTime(ride.departure_time, ride.delay_minutes)}</span>
-                                </div>
-                              ) : (
-                                <span style={{ marginLeft: 6 }}>{ride.departure_time?.slice(0, 5)}</span>
-                              )
-                            }
-                          </div>
+                          <div className="time-node">● {ride.departure_time?.slice(0, 5)}</div>
                           <div className="time-line"></div>
-                          <div className="time-node">
-                            ■{
-                              ride.is_delayed && ride.delay_minutes ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' ,marginLeft: 5}}>
-                                  <span style={{ color: '#636e72', textDecoration: 'line-through', fontSize: 9 }}>{ride.arrival_time?.slice(0, 5)}</span>
-                                  <span style={{ color: 'red', fontSize: 12, fontWeight: 600 }}>{computeDelayedTime(ride.arrival_time, ride.delay_minutes)}</span>
-                                </div>
-                              ) : (
-                                <span style={{ marginLeft: 6 }}>{ride.arrival_time?.slice(0, 5)}</span>
-                              )
-                            }
-                          </div>
+                          <div className="time-node">■ {ride.arrival_time?.slice(0, 5)}</div>
                         </div>
                         <div className="history-info-col">
                           {(() => {
