@@ -33,7 +33,9 @@ function App() {
     // 複数区間対応: segmentsは配列で区間情報を保持
     segments: [],
     car_number: '', departure_station: '', arrival_station: '',
-    departure_time: '', arrival_time: '', memo: ''
+    departure_time: '', arrival_time: '', memo: '',
+    is_delayed: false,
+    delay_minutes: 0
   })
 
   const [isCompact, setIsCompact] = useState(false);
@@ -295,7 +297,12 @@ function App() {
     e.preventDefault()
     setLoading(true)
     // segments がある場合は互換フィールドを上書きして保存
-    const payload = { ...formData, user_id: session.user.id }
+    const payload = {
+      ...formData,
+      user_id: session.user.id,
+      is_delayed: Boolean(formData.is_delayed),
+      delay_minutes: formData.is_delayed ? Number(formData.delay_minutes || 0) : 0
+    }
     if (formData.segments && formData.segments.length > 0) {
       const segs = formData.segments
       payload.line_name = segs.map(s => s.line_name).filter(Boolean).join(' → ')
@@ -318,7 +325,9 @@ function App() {
         ...prev, train_number: '', operation_number: '', formation_number: '',
         car_number: '', departure_station: prev.arrival_station,
         arrival_station: '', departure_time: '', arrival_time: '', memo: '',
-        segments: []
+        segments: [],
+        is_delayed: false,
+        delay_minutes: 0
       }))
       setMultipleSegments(false)
       setTempSegment({ railway_company: '', line_name: '', service_type: '', destination: '', service_color: 'bg-skyblue' })
@@ -360,7 +369,9 @@ function App() {
       operation_number: '', formation_number: '', service_type: '',
       service_color: 'bg-skyblue',
       car_number: '', departure_station: '', arrival_station: '',
-      departure_time: '', arrival_time: '', memo: '', segments: []
+      departure_time: '', arrival_time: '', memo: '', segments: [],
+      is_delayed: false,
+      delay_minutes: 0
     })
     setMultipleSegments(false)
     setTempSegment({ railway_company: '', line_name: '', service_type: '', destination: '', service_color: 'bg-skyblue' })
@@ -396,6 +407,33 @@ function App() {
     if (Number.isNaN(d.getTime())) return dateStr.replace(/-/g, '/')
     const weekdays = ['日','月','火','水','木','金','土']
     return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${weekdays[d.getDay()]}）`;
+  }
+
+  const getDelayedTimeValue = (timeValue, delayMinutes) => {
+    if (!timeValue) return ''
+    const match = timeValue.match(/^(\d{1,2}):(\d{2})/)
+    if (!match) return timeValue
+
+    const baseMinutes = Number(match[1]) * 60 + Number(match[2])
+    const totalMinutes = baseMinutes + Number(delayMinutes || 0)
+    const adjustedMinutes = ((totalMinutes % 1440) + 1440) % 1440
+    const hours = String(Math.floor(adjustedMinutes / 60)).padStart(2, '0')
+    const minutes = String(adjustedMinutes % 60).padStart(2, '0')
+    return `${hours}:${minutes}`
+  }
+
+  const renderTimeDisplay = (timeValue, ride) => {
+    const displayTime = timeValue?.slice(0, 5)
+    if (!ride?.is_delayed || !ride?.delay_minutes) {
+      return <span className="time-display-normal">{displayTime}</span>
+    }
+
+    return (
+      <div className="time-delay-stack">
+        <span className="time-original">{displayTime}</span>
+        <span className="time-delayed">{getDelayedTimeValue(timeValue, ride.delay_minutes)}</span>
+      </div>
+    )
   }
 
   const toggleDate = (date) => {
@@ -555,9 +593,20 @@ function App() {
               <input type="text" list="station-list" placeholder="下車駅" value={formData.arrival_station} onChange={(e) => handleInputChange('arrival_station', e.target.value)} />
             </div>
 
-            <div className="input-group">
-              <label>発車時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} style={{ width: '80%' }} /></label>
-              <label>到着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '80%' }} /></label>
+            <div className="time-with-delay-row">
+              <label className="time-field">発車時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} style={{ width: '100%' }} /></label>
+              <label className="time-field">到着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '100%' }} /></label>
+              <div className="delay-panel">
+                <label className="delay-checkbox">
+                  <input type="checkbox" checked={Boolean(formData.is_delayed)} onChange={(e) => handleInputChange('is_delayed', e.target.checked)} />
+                  <span>遅延あり</span>
+                </label>
+                {formData.is_delayed && (
+                  <label className="delay-input-label">遅延（分）
+                    <input type="number" min="1" step="1" value={formData.delay_minutes || 0} onChange={(e) => handleInputChange('delay_minutes', e.target.value)} />
+                  </label>
+                )}
+              </div>
             </div>
 
             <textarea placeholder="備考・メモ" value={formData.memo} onChange={(e) => handleInputChange('memo', e.target.value)} />
@@ -619,9 +668,9 @@ function App() {
                     <div key={ride.id} className="history-card card">
                       <div className="history-main">
                         <div className="history-time-col">
-                          <div className="time-node">● {ride.departure_time?.slice(0, 5)}</div>
+                          <div className="time-node">● {renderTimeDisplay(ride.departure_time, ride)}</div>
                           <div className="time-line"></div>
-                          <div className="time-node">■ {ride.arrival_time?.slice(0, 5)}</div>
+                          <div className="time-node">■ {renderTimeDisplay(ride.arrival_time, ride)}</div>
                         </div>
                         <div className="history-info-col">
                           {(() => {
