@@ -594,8 +594,8 @@ function App() {
             </div>
 
             <div className="time-with-delay-row">
-              <label className="time-field">発車時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} style={{ width: '100%' }} /></label>
-              <label className="time-field">到着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '100%' }} /></label>
+              <label className="time-field">発車時刻<input type="time" value={formData.departure_time} onChange={(e) => handleInputChange('departure_time', e.target.value)} style={{ width: '85%' }} /></label>
+              <label className="time-field">到着時刻<input type="time" value={formData.arrival_time} onChange={(e) => handleInputChange('arrival_time', e.target.value)} style={{ width: '85%' }} /></label>
               <div className="delay-panel">
                 <label className="delay-checkbox">
                   <input type="checkbox" checked={Boolean(formData.is_delayed)} onChange={(e) => handleInputChange('is_delayed', e.target.checked)} />
